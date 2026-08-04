@@ -1,0 +1,32 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# IDE & Editor settings
+.vscode/
+.idea/
+.DS_Store
+
+# Temporary & Log files
+*.log
+*.tmp
+temp/
+scratch/
+
+# Large Datasets (>100MB files exceeding GitHub limits)
+*.csv
+!novasat-sim/data/contact_windows_*.csv
+
+# Security & Private keys (if any)
+novasat-sim/keys/private_*.pem
+novasat-sim/certs/*.key
+
+# Model artifacts directory temporary files
+*.tmp.pkl

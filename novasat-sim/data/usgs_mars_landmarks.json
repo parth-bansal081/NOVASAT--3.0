@@ -1,0 +1,94 @@
+{
+  "source": "USGS Astrogeology Gazetteer of Planetary Nomenclature (planetarynames.wr.usgs.gov)",
+  "body": "Mars",
+  "features": [
+    {
+      "name": "Jezero Crater",
+      "type": "Crater",
+      "latitude_deg": 18.38,
+      "longitude_deg": 77.58,
+      "diameter_km": 47.5,
+      "description": "Landing site of NASA Perseverance Rover (rover_1)"
+    },
+    {
+      "name": "Gale Crater",
+      "type": "Crater",
+      "latitude_deg": -5.4,
+      "longitude_deg": 137.8,
+      "diameter_km": 154.0,
+      "description": "Landing site of NASA Curiosity Rover (rover_2)"
+    },
+    {
+      "name": "Olympus Mons",
+      "type": "Mons",
+      "latitude_deg": 18.65,
+      "longitude_deg": -133.8,
+      "diameter_km": 624.0,
+      "description": "Largest volcano in the Solar System"
+    },
+    {
+      "name": "Valles Marineris",
+      "type": "Chasma",
+      "latitude_deg": -14.0,
+      "longitude_deg": -59.2,
+      "diameter_km": 4000.0,
+      "description": "Vast canyon system along Mars equator"
+    },
+    {
+      "name": "Hellas Planitia",
+      "type": "Planitia",
+      "latitude_deg": -42.4,
+      "longitude_deg": 70.5,
+      "diameter_km": 2300.0,
+      "description": "Enormous impact basin in southern hemisphere"
+    },
+    {
+      "name": "Utopia Planitia",
+      "type": "Planitia",
+      "latitude_deg": 46.7,
+      "longitude_deg": 117.5,
+      "diameter_km": 3300.0,
+      "description": "Vast plain in northern lowland basin"
+    },
+    {
+      "name": "Elysium Mons",
+      "type": "Mons",
+      "latitude_deg": 25.0,
+      "longitude_deg": 147.2,
+      "diameter_km": 240.0,
+      "description": "Volcano located in Elysium Planitia"
+    },
+    {
+      "name": "Alba Mons",
+      "type": "Mons",
+      "latitude_deg": 40.5,
+      "longitude_deg": -110.0,
+      "diameter_km": 1600.0,
+      "description": "Low-profile volcanic structure in northern Tharsis"
+    },
+    {
+      "name": "Arsia Mons",
+      "type": "Mons",
+      "latitude_deg": -8.4,
+      "longitude_deg": -121.1,
+      "diameter_km": 435.0,
+      "description": "Southernmost volcano of Tharsis Montes"
+    },
+    {
+      "name": "Pavonis Mons",
+      "type": "Mons",
+      "latitude_deg": 0.8,
+      "longitude_deg": -113.4,
+      "diameter_km": 375.0,
+      "description": "Middle volcano of Tharsis Montes"
+    },
+    {
+      "name": "Ascraeus Mons",
+      "type": "Mons",
+      "latitude_deg": 11.9,
+      "longitude_deg": -104.5,
+      "diameter_km": 460.0,
+      "description": "Northernmost volcano of Tharsis Montes"
+    }
+  ]
+}

@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NOVASAT Track 2 — 3D CesiumJS Live Telemetry & Anomaly Analyzer</title>
+  <meta name="description" content="Live 3D Mars orbital ground-track, contact window, and real-time model anomaly detection visualization powered by CesiumJS and FastAPI WebSocket backend.">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <!-- CesiumJS CSS (v1.115) -->
+  <link rel="stylesheet" href="https://cesium.com/downloads/cesiumjs/releases/1.115/Build/Cesium/Widgets/widgets.css">
+
+  <!-- Application CSS -->
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Header Bar -->
+    <header class="navbar">
+      <div class="brand">
+        <div class="planet-badge">🪐</div>
+        <div>
+          <h1>NOVASAT <span>3D Live</span></h1>
+          <p class="subtitle">CesiumJS Biaxial Ellipsoid Globe &amp; Real-Time Anomaly Inference</p>
+        </div>
+      </div>
+
+      <div class="header-stats">
+        <div class="stat-pill">
+          <span class="label">CONSTELLATION</span>
+          <span id="stat-constellation" class="val highlight">N = 6</span>
+        </div>
+        <div class="stat-pill">
+          <span class="label">ACTIVE CONTACTS</span>
+          <span id="stat-contacts" class="val active-glow">0 Active</span>
+        </div>
+        <div class="stat-pill">
+          <span class="label">ORBITAL PERIOD</span>
+          <span id="stat-period" class="val">117.9 min</span>
+        </div>
+        <div class="stat-pill clock-pill">
+          <span class="label">SIMULATION TIME</span>
+          <span id="clock-display" class="val clock">Day 00 — 00:00:00</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Cesium 3D Viewport -->
+    <main class="map-viewport">
+      <div id="cesiumContainer"></div>
+
+      <!-- Floating Telemetry & Controls Side Panel -->
+      <aside class="side-panel glass-card">
+        <div class="panel-header">
+          <h3>🛰️ Orbiters &amp; Surface Assets</h3>
+          <span class="badge" id="asset-count">2 Rovers, 6 Orbiters</span>
+        </div>
+
+        <!-- Connection Status Pill -->
+        <div id="connection-status" class="val-row" style="margin-top: 4px;">
+          <span class="val-label">SERVER CONNECTION</span>
+          <span id="ws-status-text" class="val-value val-pass">🟢 Connected (ws://localhost:8000/ws/sim)</span>
+        </div>
+
+        <div class="section-title">SURFACE ROVERS (FIXED BIAXIAL ELLIPSOID)</div>
+        <div class="rover-list">
+          <div class="rover-card" id="card-rover-1">
+            <div class="card-top">
+              <span class="rover-icon">🔴</span>
+              <div class="rover-info">
+                <strong>rover_1 (Perseverance)</strong>
+                <span class="location">Jezero Crater</span>
+              </div>
+              <span class="coord-badge">18.4663°N, 77.4298°E</span>
+            </div>
+            <div class="contact-status" id="status-rover-1">No Active Overhead Contact</div>
+          </div>
+
+          <div class="rover-card" id="card-rover-2">
+            <div class="card-top">
+              <span class="rover-icon">🟡</span>
+              <div class="rover-info">
+                <strong>rover_2 (Curiosity)</strong>
+                <span class="location">Gale Crater</span>
+              </div>
+              <span class="coord-badge">4.5895°S, 137.4417°E</span>
+            </div>
+            <div class="contact-status" id="status-rover-2">No Active Overhead Contact</div>
+          </div>
+        </div>
+
+        <div class="section-title">ORBITERS (LIVE 3D INFERENCE &amp; TELEMETRY)</div>
+        <div class="orbiter-list" id="orbiter-list-container">
+          <!-- Dynamically populated orbiter status cards -->
+        </div>
+
+        <!-- Anomaly Injection Panel -->
+        <div class="section-title" style="margin-top: 8px;">⚡ LIVE ANOMALY INJECTION</div>
+        <div class="validation-panel" style="gap: 8px;">
+          <div class="control-group" style="flex-wrap: wrap;">
+            <label for="select-fault-target">Target Node:</label>
+            <select id="select-fault-target" class="custom-select">
+              <option value="orbiter_0">orbiter_0</option>
+              <option value="orbiter_1">orbiter_1</option>
+              <option value="orbiter_2">orbiter_2</option>
+              <option value="orbiter_3">orbiter_3</option>
+              <option value="orbiter_4">orbiter_4</option>
+              <option value="orbiter_5">orbiter_5</option>
+            </select>
+          </div>
+          <div class="control-group" style="flex-wrap: wrap;">
+            <label for="select-fault-type">Fault Type:</label>
+            <select id="select-fault-type" class="custom-select">
+              <option value="clock_drift">Clock Drift Skew</option>
+              <option value="altitude_decay">Orbital Altitude Decay</option>
+            </select>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button id="btn-inject-fault" class="btn btn-primary" style="flex:1; background: linear-gradient(135deg, #ff5232, #ff0055);">
+              Inject Fault
+            </button>
+            <button id="btn-clear-fault" class="btn btn-secondary" style="flex:1;">
+              Clear Fault
+            </button>
+          </div>
+        </div>
+
+        <!-- §4 Validation Panel -->
+        <div class="section-title" style="margin-top: 8px;">§4 LIVE VALIDATION MONITOR</div>
+        <div class="validation-panel">
+          <div class="val-row">
+            <span class="val-label">Biaxial Ellipsoid (a/b)</span>
+            <span id="val-ellipsoid" class="val-value val-pass">3396.19 / 3376.20 km (a/b = 1.0059)</span>
+          </div>
+          <div class="val-row">
+            <span class="val-label">Orbital Period (Batch Match)</span>
+            <span id="val-orbital-period" class="val-value val-pass">117.9 min (±0.1 min)</span>
+          </div>
+          <div class="val-row">
+            <span class="val-label">Leakage-Safe Model Engine</span>
+            <span id="val-model-engine" class="val-value val-pass">Gaussian &amp; iForest (Frozen Weights)</span>
+          </div>
+          <div class="val-row">
+            <span class="val-label">Recorded Session File</span>
+            <span id="val-record-file" class="val-value val-pending">Recording Off</span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Bottom Control Panel -->
+      <section class="control-panel glass-card">
+        <div class="scrubber-row">
+          <button id="btn-play" class="btn btn-primary" title="Play/Pause Simulation">
+            <span id="play-icon">⏸</span> <span id="play-label">Pause</span>
+          </button>
+
+          <button id="btn-reset" class="btn btn-secondary" title="Reset to Start">
+            <span>⏮</span> Reset
+          </button>
+
+          <!-- Dedicated Zoom In / Zoom Out Controls -->
+          <div class="zoom-controls" style="display: flex; gap: 6px;">
+            <button id="btn-zoom-in" class="btn btn-secondary" title="Zoom In (+)">🔍 +</button>
+            <button id="btn-zoom-out" class="btn btn-secondary" title="Zoom Out (-)">🔍 −</button>
+          </div>
+
+          <div class="control-group">
+            <label for="speed-select">Speed:</label>
+            <select id="speed-select" class="custom-select">
+              <option value="1">1x (Realtime)</option>
+              <option value="10">10x</option>
+              <option value="60" selected>60x (1 min/s)</option>
+              <option value="300">300x (5 min/s)</option>
+              <option value="1200">1200x (20 min/s)</option>
+              <option value="3600">3600x (1 hr/s)</option>
+            </select>
+          </div>
+
+          <div class="control-group">
+            <label for="n-select">Constellation:</label>
+            <select id="n-select" class="custom-select">
+              <option value="1">N = 1</option>
+              <option value="2">N = 2</option>
+              <option value="4">N = 4</option>
+              <option value="6" selected>N = 6</option>
+              <option value="8">N = 8</option>
+              <option value="10">N = 10</option>
+            </select>
+          </div>
+
+          <!-- Session Recording Toggle -->
+          <div class="control-group" style="margin-left: auto;">
+            <label class="toggle-chip">
+              <input type="checkbox" id="toggle-record">
+              <span>Record Session to Disk</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="toggle-row">
+          <label class="toggle-chip"><input type="checkbox" id="toggle-tracks" checked> <span>3D Orbit Paths</span></label>
+          <label class="toggle-chip"><input type="checkbox" id="toggle-los" checked> <span>Glowing 3D Contact Rays</span></label>
+          <label class="toggle-chip"><input type="checkbox" id="toggle-landmarks" checked> <span>USGS Landmarks Nomenclature</span></label>
+          <label class="toggle-chip"><input type="checkbox" id="toggle-labels" checked> <span>Asset Labels</span></label>
+          <span class="info-tip">💡 Live 3D physics computed by Python backend &amp; streamed over WebSockets.</span>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- CesiumJS Base URL & Library -->
+  <script>
+    window.CESIUM_BASE_URL = 'https://cesium.com/downloads/cesiumjs/releases/1.115/Build/Cesium/';
+  </script>
+  <script src="https://cesium.com/downloads/cesiumjs/releases/1.115/Build/Cesium/Cesium.js"></script>
+
+  <!-- Application JS -->
+  <script src="/static/app_3d.js"></script>
+</body>
+</html>
