@@ -245,16 +245,19 @@ class Mars3DRenderer {
     const pA = Cesium.Cartesian3.fromDegrees(posA_km.lon, posA_km.lat, posA_km.altKm * 1000.0);
     const pB = Cesium.Cartesian3.fromDegrees(posB_km.lon, posB_km.lat, posB_km.altKm * 1000.0);
 
-    const beamColor = linkType === "rover_orbiter" ? Cesium.Color.SPRINGGREEN : Cesium.Color.DEEPSKYBLUE;
+    let beamColor = Cesium.Color.SPRINGGREEN;
+    if (linkType === "orbiter_orbiter") beamColor = Cesium.Color.DEEPSKYBLUE;
+    if (linkType === "amber_watch") beamColor = Cesium.Color.GOLD;
+    if (linkType === "red_warning") beamColor = Cesium.Color.RED;
 
     if (!this.contactLinkEntities.has(linkId)) {
       const entity = this.viewer.entities.add({
         id: `link_${linkId}`,
         polyline: {
           positions: [pA, pB],
-          width: 3.0,
+          width: (linkType === "red_warning" || linkType === "amber_watch") ? 4.5 : 3.0,
           material: new Cesium.PolylineGlowMaterialProperty({
-            glowPower: 0.25,
+            glowPower: 0.35,
             color: beamColor,
           }),
         },
@@ -398,6 +401,42 @@ document.addEventListener("DOMContentLoaded", () => {
           renderer.setContactLink(`link_${idx}`, posA, posB, link.link_type);
         }
       });
+    }
+
+    // Render 3D Conjunction Risk Rays (Amber Watch / Red Trigger Warning)
+    if (toggleLOS.checked && data.conjunction_risks) {
+      data.conjunction_risks.forEach((risk, idx) => {
+        const orbA = data.orbiters.find((o) => o.id === risk.sat_A);
+        const orbB = data.orbiters.find((o) => o.id === risk.sat_B);
+        if (orbA && orbB) {
+          const posA = { lat: orbA.latitude_deg, lon: orbA.longitude_deg, altKm: orbA.altitude_km };
+          const posB = { lat: orbB.latitude_deg, lon: orbB.longitude_deg, altKm: orbB.altitude_km };
+          const linkType = risk.is_trigger ? "red_warning" : "amber_watch";
+          renderer.setContactLink(`conj_${idx}`, posA, posB, linkType);
+        }
+      });
+    }
+
+    // Update Conjunction Risk UI Elements
+    const maxPc = data.max_pc || 0.0;
+    const maxPcPair = data.max_pc_pair || "None";
+    const valMaxPc = document.getElementById("val-max-pc");
+    const valMaxPcPair = document.getElementById("val-max-pc-pair");
+
+    if (valMaxPc) {
+      if (maxPc > 1e-4) {
+        valMaxPc.className = "val-value val-fail";
+        valMaxPc.textContent = `${maxPc.toExponential(2)} (TRIGGER - AUTO MANEUVER)`;
+      } else if (maxPc > 1e-6) {
+        valMaxPc.className = "val-value val-warn";
+        valMaxPc.textContent = `${maxPc.toExponential(2)} (WATCH)`;
+      } else {
+        valMaxPc.className = "val-value val-pass";
+        valMaxPc.textContent = `${maxPc.toExponential(2)} (Nominal)`;
+      }
+    }
+    if (valMaxPcPair) {
+      valMaxPcPair.textContent = maxPcPair;
     }
 
     // Update surface rover cards

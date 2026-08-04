@@ -62,6 +62,11 @@ try:
 except ImportError:
     pass
 
+try:
+    from src.conjunction_assessment import evaluate_all_pairs_conjunction, PC_TRIGGER_THRESHOLD, PC_WATCH_THRESHOLD
+except ImportError:
+    pass
+
 # Physical biaxial ellipsoid radii for 3D coordinate mapping & occlusion (in km)
 MARS_ELLIPSOID_A_KM = 3396.19  # Equatorial radius
 MARS_ELLIPSOID_B_KM = 3376.20  # Polar radius
@@ -297,6 +302,23 @@ class LiveSimulationEngine:
         self.custom_elements: Dict[int, Dict[str, float]] = {}
         self.fault_states: Dict[str, Dict[str, Any]] = {}
         self.last_wall_time = time.time()
+
+        # Track 2 Phase 2 Conjunction Risk & Auto-Maneuver State
+        self.conjunction_risks: List[Dict[str, Any]] = []
+        self.max_pc: float = 0.0
+        self.max_pc_pair: Optional[str] = None
+        self.maneuver_logs: List[Dict[str, Any]] = []
+        self.last_conjunction_eval_time: float = -3600.0
+        self.triage_model = None
+
+        triage_pkl = os.path.join(ROOT_DIR, "models", "triage_classifier.pkl")
+        if os.path.exists(triage_pkl):
+            try:
+                with open(triage_pkl, "rb") as f:
+                    self.triage_model = pickle.load(f)
+                print(f"[Sim Engine] Loaded ML Triage Classifier from {triage_pkl}")
+            except Exception as e:
+                print(f"[Sim Engine] Warning: Could not load triage classifier: {e}")
 
     def set_n(self, n: int):
         if n in [1, 2, 4, 6, 8, 10]:
@@ -538,6 +560,49 @@ class LiveSimulationEngine:
                 }
                 self.recorded_rows.append(rec_row)
 
+        # Conjunction Risk Assessment Pass (Decoupled Hourly Cadence - Part A.1)
+        if self.sim_time_s - self.last_conjunction_eval_time >= 3600.0 or not self.conjunction_risks:
+            try:
+                res = evaluate_all_pairs_conjunction(orbiters_state, lookahead_sec=86400.0, triage_model=self.triage_model)
+                self.conjunction_risks = res["risks"]
+                self.max_pc = res["max_pc"]
+                self.max_pc_pair = res["max_pc_pair"]
+                self.last_conjunction_eval_time = self.sim_time_s
+
+                # Check for deterministic maneuver triggers (Pc > 1e-4 - Part E)
+                for risk in res["risks"]:
+                    if risk.get("is_trigger", False):
+                        sat_a_id = risk["sat_A"]
+                        try:
+                            sat_a_idx = int(sat_a_id.replace("orbiter_", ""))
+                            curr_alt = self.custom_elements.get(sat_a_idx, {}).get("altitude_km", 400.0)
+                            curr_inc = self.custom_elements.get(sat_a_idx, {}).get("inclination_deg", 90.0)
+                            new_alt = curr_alt + 2.0  # 2km along-track altitude boost maneuver
+                            
+                            self.set_satellite_elements(sat_a_idx, new_alt, curr_inc)
+                            
+                            # Mark satellite as maneuvering
+                            for orb in orbiters_state:
+                                if orb["id"] == sat_a_id:
+                                    orb["maneuvering"] = True
+
+                            maneuver_entry = {
+                                "timestamp": float(t_sec),
+                                "sat_A": sat_a_id,
+                                "sat_B": risk["sat_B"],
+                                "pc": float(risk["pc"]),
+                                "miss_distance_km": float(risk["miss_distance_km"]),
+                                "delta_alt_km": 2.0,
+                                "new_alt_km": float(new_alt),
+                                "action": "AUTO_MANEUVER_EXECUTED"
+                            }
+                            self.maneuver_logs.append(maneuver_entry)
+                            print(f"[Collision Avoidance] AUTO-MANEUVER TRIGGERED: {sat_a_id} vs {risk['sat_B']} (Pc={risk['pc']:.2e}, New Alt={new_alt:.1f}km)")
+                        except Exception as ex:
+                            print(f"[Collision Avoidance] Error executing maneuver: {ex}")
+            except Exception as e:
+                print(f"[Collision Avoidance] Error in conjunction assessment pass: {e}")
+
         days = int(t_sec // 86400)
         rem = t_sec % 86400
         hrs = int(rem // 3600)
@@ -557,6 +622,10 @@ class LiveSimulationEngine:
             "rovers": SURFACE_ASSET_CARTESIAN,
             "surface_statuses": surface_statuses,
             "active_contacts": active_contacts,
+            "conjunction_risks": self.conjunction_risks,
+            "max_pc": float(self.max_pc),
+            "max_pc_pair": self.max_pc_pair,
+            "maneuver_logs": self.maneuver_logs[-20:],
             "orbital_period_min": float(2.0 * math.pi * math.sqrt((R_MARS_KM + 400.0)**3 / MU_MARS_KM3_S2) / 60.0)
         }
 

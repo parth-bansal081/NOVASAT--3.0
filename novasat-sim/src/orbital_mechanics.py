@@ -55,65 +55,104 @@ def get_mars_body():
             R=R_MARS_KM * u.km
         )
 
-def create_orbiters(n, body):
+J2_MARS = 0.001960454
+
+def compute_j2_rates(a_km: float, inc_rad: float, ecc: float = 0.0):
     """
-    Creates N orbiters in the same orbital plane, spaced equally in true anomaly.
-    - Orbit shape: circular (ecc = 0)
-    - Inclination: 90 degrees (polar orbit)
-    - RAAN: 0 degrees
-    - Argument of pericenter: 0 degrees
-    - Spacing: True anomaly = i * (360 / N) degrees
+    Computes J2 secular precession rates for RAAN, argument of pericenter, and mean motion.
+    """
+    n0 = math.sqrt(MU_MARS_KM3_S2 / (a_km ** 3))
+    factor = 1.5 * J2_MARS * ((R_MARS_KM / a_km) ** 2) / ((1.0 - ecc**2) ** 2)
+    
+    cos_i = math.cos(inc_rad)
+    cos2_i = cos_i ** 2
+    
+    raan_dot = -factor * n0 * cos_i
+    argp_dot = 0.5 * factor * n0 * (5.0 * cos2_i - 1.0)
+    n_bar = n0 * (1.0 + 0.5 * factor * math.sqrt(1.0 - ecc**2) * (3.0 * cos2_i - 1.0))
+    
+    return n_bar, raan_dot, argp_dot
+
+
+def create_orbiters(n, body, apply_dispersion: bool = False, random_seed: int = 42):
+    """
+    Creates N orbiters in the polar plane.
+    If apply_dispersion=True, applies small realistic insertion dispersion:
+    - delta_a ~ N(0, 0.050 km) (50 meters)
+    - delta_inc ~ N(0, 0.02 deg)
     """
     orbiters = []
-    a = SEMI_MAJOR_AXIS_KM * u.km
+    a_base = SEMI_MAJOR_AXIS_KM
     ecc = 0.0 * u.one
-    inc = 90.0 * u.deg
+    inc_base = 90.0
     raan = 0.0 * u.deg
     argp = 0.0 * u.deg
-    
-    # Use J2000 epoch as reference start time
     epoch = Time("2000-01-01 12:00:00", scale="tdb")
     
+    rng = np.random.RandomState(random_seed) if apply_dispersion else None
+    
     for i in range(n):
+        if apply_dispersion and rng is not None:
+            delta_a = rng.normal(0.0, 0.050)  # 50m std dev
+            delta_inc = rng.normal(0.0, 0.02)  # 0.02 deg std dev
+        else:
+            delta_a = 0.0
+            delta_inc = 0.0
+            
+        a_orb = (a_base + delta_a) * u.km
+        inc_orb = (inc_base + delta_inc) * u.deg
         nu = (i * (360.0 / n)) * u.deg
+        
         orb = Orbit.from_classical(
             attractor=body,
-            a=a,
+            a=a_orb,
             ecc=ecc,
-            inc=inc,
+            inc=inc_orb,
             raan=raan,
             argp=argp,
             nu=nu,
             epoch=epoch
         )
+        # Attach dispersion offsets for downstream propagation
+        orb.delta_a_km = delta_a
+        orb.delta_inc_deg = delta_inc
         orbiters.append(orb)
+        
     return orbiters
 
-def propagate_orbiters_positions(orbiters, sim_duration_s, time_step_s):
-    """
-    High-performance analytical propagation of orbiters over simulation duration.
-    For circular polar orbits (inc=90deg, e=0, raan=0, argp=0), analytical 2-body
-    Keplerian propagation is exact and runs in milliseconds.
 
-    Returns:
-    - times: 1D numpy array of simulation seconds [0, dt, 2*dt, ...]
-    - positions_list: list of 2D numpy arrays of shape (num_steps, 3) containing [x, y, z] in km.
+def propagate_orbiters_positions(orbiters, sim_duration_s, time_step_s, enable_j2: bool = True):
+    """
+    Propagates orbiter positions analytically over time, incorporating J2 secular precession
+    (RAAN drift, argument of latitude rate) when enable_j2=True.
     """
     times = np.arange(0, sim_duration_s + time_step_s, time_step_s)
     num_orbiters = len(orbiters)
-    a = SEMI_MAJOR_AXIS_KM
-    n_orbit = np.sqrt(MU_MARS_KM3_S2 / (a**3))
 
     positions_list = []
-    for i in range(num_orbiters):
-        nu_0 = i * (2.0 * np.pi / num_orbiters)
-        nu_t = nu_0 + n_orbit * times
+    for i, orb in enumerate(orbiters):
+        a_km = float(orb.a.to_value(u.km))
+        inc_rad = float(orb.inc.to_value(u.rad))
+        nu_0 = float(orb.nu.to_value(u.rad))
 
-        x = (a * np.cos(nu_t)).astype(np.float32)
-        y = np.zeros_like(x, dtype=np.float32)
-        z = (a * np.sin(nu_t)).astype(np.float32)
+        if enable_j2:
+            n_bar, raan_dot, argp_dot = compute_j2_rates(a_km, inc_rad, ecc=0.0)
+            u_t = nu_0 + (n_bar + argp_dot) * times
+            raan_t = raan_dot * times
+        else:
+            n_orbit = math.sqrt(MU_MARS_KM3_S2 / (a_km**3))
+            u_t = nu_0 + n_orbit * times
+            raan_t = np.zeros_like(times)
 
-        pos = np.stack([x, y, z], axis=1)
+        # 3D Position in MCI frame with J2 RAAN & Inc perturbation
+        sin_inc = math.sin(inc_rad)
+        cos_inc = math.cos(inc_rad)
+
+        x_mci = a_km * (np.cos(u_t) * np.cos(raan_t) - np.sin(u_t) * np.sin(raan_t) * cos_inc)
+        y_mci = a_km * (np.cos(u_t) * np.sin(raan_t) + np.sin(u_t) * np.cos(raan_t) * cos_inc)
+        z_mci = a_km * (np.sin(u_t) * sin_inc)
+
+        pos = np.stack([x_mci, y_mci, z_mci], axis=1).astype(np.float32)
         positions_list.append(pos)
 
     return times, positions_list
