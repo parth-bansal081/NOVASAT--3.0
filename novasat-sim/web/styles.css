@@ -430,3 +430,105 @@ body, html {
   height: 14px;
   cursor: pointer;
 }
+
+/* ── 4-Slider Orbital Controls (per orbiter card) ──────────────────────── */
+.orbital-controls {
+  padding: 8px 0 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.orbital-controls label {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.orbital-controls label strong {
+  color: var(--accent-cyan);
+  font-family: var(--font-mono);
+}
+
+input[type="range"].orb-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 4px;
+  background: linear-gradient(
+    to right,
+    var(--accent-cyan) 0%,
+    var(--accent-cyan) var(--slider-pct, 50%),
+    rgba(255, 255, 255, 0.12) var(--slider-pct, 50%),
+    rgba(255, 255, 255, 0.12) 100%
+  );
+  outline: none;
+  cursor: pointer;
+  margin: 2px 0;
+  transition: box-shadow 0.15s ease;
+}
+
+input[type="range"].orb-slider:focus {
+  box-shadow: 0 0 0 2px rgba(0, 229, 255, 0.25);
+}
+
+input[type="range"].orb-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--accent-cyan);
+  border: 2px solid rgba(0, 0, 0, 0.6);
+  box-shadow: 0 0 6px rgba(0, 229, 255, 0.5);
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.15s ease;
+}
+
+input[type="range"].orb-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.25);
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.8);
+}
+
+input[type="range"].orb-slider::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--accent-cyan);
+  border: 2px solid rgba(0, 0, 0, 0.6);
+  box-shadow: 0 0 6px rgba(0, 229, 255, 0.5);
+  cursor: pointer;
+}
+
+/* Separate glow color for RAAN (green) and Phase (yellow) sliders */
+input[type="range"].orb-slider[data-param="raan"] {
+  background: linear-gradient(
+    to right,
+    var(--accent-green) 0%,
+    var(--accent-green) var(--slider-pct, 50%),
+    rgba(255, 255, 255, 0.12) var(--slider-pct, 50%),
+    rgba(255, 255, 255, 0.12) 100%
+  );
+}
+input[type="range"].orb-slider[data-param="raan"]::-webkit-slider-thumb {
+  background: var(--accent-green);
+  box-shadow: 0 0 6px rgba(0, 230, 118, 0.5);
+}
+
+input[type="range"].orb-slider[data-param="nu"] {
+  background: linear-gradient(
+    to right,
+    var(--accent-yellow) 0%,
+    var(--accent-yellow) var(--slider-pct, 50%),
+    rgba(255, 255, 255, 0.12) var(--slider-pct, 50%),
+    rgba(255, 255, 255, 0.12) 100%
+  );
+}
+input[type="range"].orb-slider[data-param="nu"]::-webkit-slider-thumb {
+  background: var(--accent-yellow);
+  box-shadow: 0 0 6px rgba(255, 214, 0, 0.5);
+}

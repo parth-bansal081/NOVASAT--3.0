@@ -476,10 +476,29 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
           <span class="coord-badge">${orb.latitude_deg.toFixed(2)}°, ${orb.longitude_deg.toFixed(2)}°</span>
         </div>
-        <div style="margin-top: 6px; font-size: 10px; display: flex; justify-content: space-between;">
+        <div style="margin-top: 6px; font-size: 10px; display: flex; justify-content: space-between; align-items: center;">
           <span>Gaussian: <strong style="color: ${inf.gaussian_score > 0.05 ? '#ff5232' : '#00e676'}">${inf.gaussian_score.toFixed(3)}</strong></span>
-          <span>iForest: <strong style="color: ${inf.iforest_score > 0.55 ? '#ff5232' : '#00e676'}">${inf.iforest_score.toFixed(3)}</strong></span>
-          <span class="badge" style="background: ${inf.anomaly_flag ? 'rgba(255,82,50,0.2)' : 'rgba(0,230,118,0.2)'}">${inf.anomaly_flag ? 'ANOMALY' : 'NORMAL'}</span>
+          <span>iForest: <strong style="color: ${inf.iforest_score > 0.60 ? '#ff5232' : '#00e676'}">${inf.iforest_score.toFixed(3)}</strong></span>
+          <span class="badge" style="background: ${inf.anomaly_flag ? 'rgba(255,82,50,0.25)' : 'rgba(0,230,118,0.25)'}; color: ${inf.anomaly_flag ? '#ff5232' : '#00e676'};">${inf.anomaly_flag ? 'ANOMALY' : 'NORMAL'}</span>
+        </div>
+        <!-- 4-Slider Live Controls -->
+        <div class="orbiter-controls" style="margin-top: 8px; font-size: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; background: rgba(0,0,0,0.2); padding: 4px; border-radius: 4px;">
+          <div>
+            <label>Alt: <strong>${orb.altitude_km.toFixed(0)}</strong>km</label>
+            <input type="range" class="orb-slider" data-idx="${orb.index}" data-param="alt" min="100" max="5000" step="25" value="${orb.altitude_km.toFixed(0)}" style="width: 100%;">
+          </div>
+          <div>
+            <label>Inc: <strong>${(orb.inclination_deg || 90).toFixed(0)}</strong>°</label>
+            <input type="range" class="orb-slider" data-idx="${orb.index}" data-param="inc" min="0" max="180" step="1" value="${(orb.inclination_deg || 90).toFixed(0)}" style="width: 100%;">
+          </div>
+          <div>
+            <label>RAAN: <strong>${(orb.raan_deg || 0).toFixed(0)}</strong>°</label>
+            <input type="range" class="orb-slider" data-idx="${orb.index}" data-param="raan" min="0" max="360" step="5" value="${(orb.raan_deg || 0).toFixed(0)}" style="width: 100%;">
+          </div>
+          <div>
+            <label>Phase: <strong>${(orb.true_anomaly_deg || 0).toFixed(0)}</strong>°</label>
+            <input type="range" class="orb-slider" data-idx="${orb.index}" data-param="nu" min="0" max="360" step="5" value="${(orb.true_anomaly_deg || 0).toFixed(0)}" style="width: 100%;">
+          </div>
         </div>
       `;
       orbiterListContainer.appendChild(card);
@@ -496,6 +515,38 @@ document.addEventListener("DOMContentLoaded", () => {
   btnReset.addEventListener("click", () => {
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify({ action: "reset" }));
+    }
+  });
+
+  const btnResetSwarm = document.getElementById("btn-reset-swarm");
+  if (btnResetSwarm) {
+    btnResetSwarm.addEventListener("click", () => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ action: "reset_constellation" }));
+      }
+    });
+  }
+
+  orbiterListContainer.addEventListener("change", (e) => {
+    if (e.target && e.target.classList.contains("orb-slider")) {
+      const idx = parseInt(e.target.getAttribute("data-idx"));
+      const card = e.target.closest(".orbiter-card");
+      if (!card) return;
+      const altInput = card.querySelector('.orb-slider[data-param="alt"]');
+      const incInput = card.querySelector('.orb-slider[data-param="inc"]');
+      const raanInput = card.querySelector('.orb-slider[data-param="raan"]');
+      const nuInput = card.querySelector('.orb-slider[data-param="nu"]');
+
+      if (ws && ws.readyState === WebSocket.OPEN && altInput && incInput && raanInput && nuInput) {
+        ws.send(JSON.stringify({
+          action: "set_elements",
+          orbiter_index: idx,
+          altitude_km: parseFloat(altInput.value),
+          inclination_deg: parseFloat(incInput.value),
+          raan_deg: parseFloat(raanInput.value),
+          true_anomaly_deg: parseFloat(nuInput.value)
+        }));
+      }
     }
   });
 

@@ -62,6 +62,15 @@ try:
 except ImportError:
     pass
 
+import astropy.coordinates.matrix_utilities as mu
+if not hasattr(mu, "matrix_product"):
+    def matrix_product(*args):
+        res = args[0]
+        for m in args[1:]:
+            res = res @ m
+        return res
+    mu.matrix_product = matrix_product
+
 try:
     from src.conjunction_assessment import evaluate_all_pairs_conjunction, PC_TRIGGER_THRESHOLD, PC_WATCH_THRESHOLD
 except ImportError:
@@ -131,7 +140,9 @@ class AnomalyInferenceEngine:
     def __init__(self, models_dir: str = os.path.join(ROOT_DIR, "models")):
         self.gaussian_model = None
         self.iforest_model = None
-        self.feature_cols = [
+        self.ensemble_scaler = None
+        self.ensemble_meta_model = None
+        self.semantic_cols = [
             "sig_verify_fail_count", "revocation_msgs_sent", "revocation_msgs_received",
             "accusations_made", "accusations_received", "corroboration_count_for_target",
             "trust_score_current", "msgs_sent", "msgs_recv", "bytes_sent", "bytes_recv",
@@ -142,9 +153,12 @@ class AnomalyInferenceEngine:
             "speed_delta", "accel_proxy", "heading_change_rate", "power_level", "power_delta",
             "cpu_load", "queue_depth"
         ]
+        self.feature_cols = list(self.semantic_cols)
 
         gaussian_path = os.path.join(models_dir, "gaussian_model.pkl")
         iforest_path = os.path.join(models_dir, "isolation_forest_model.pkl")
+        scaler_path = os.path.join(models_dir, "ensemble_scaler.pkl")
+        meta_path = os.path.join(models_dir, "ensemble_meta_model.pkl")
 
         if os.path.exists(gaussian_path):
             try:
@@ -164,27 +178,60 @@ class AnomalyInferenceEngine:
             except Exception as e:
                 print(f"[Model Engine] Failed to load Isolation Forest Model: {e}")
 
+        if os.path.exists(scaler_path):
+            try:
+                with open(scaler_path, "rb") as f:
+                    self.ensemble_scaler = pickle.load(f)
+                print(f"[Model Engine] Loaded Ensemble Scaler from {scaler_path}")
+            except Exception as e:
+                print(f"[Model Engine] Failed to load Ensemble Scaler: {e}")
+
+        if os.path.exists(meta_path):
+            try:
+                with open(meta_path, "rb") as f:
+                    self.ensemble_meta_model = pickle.load(f)
+                print(f"[Model Engine] Loaded Ensemble Meta-Model from {meta_path}")
+            except Exception as e:
+                print(f"[Model Engine] Failed to load Ensemble Meta-Model: {e}")
+
     def predict(self, feature_dict: Dict[str, float]) -> Dict[str, float]:
         """Perform read-only inference on exact 34-feature telemetry vector."""
-        res = {"gaussian_score": 0.0, "iforest_score": 0.0, "anomaly_flag": False}
+        res = {"gaussian_score": 0.0, "iforest_score": 0.0, "ensemble_prob": 0.0, "anomaly_flag": False}
 
-        vec_df = pd.DataFrame([[feature_dict.get(c, 0.0) for c in self.feature_cols]], columns=self.feature_cols, dtype=np.float32)
+        raw_vals = [feature_dict.get(c, 0.0) for c in self.semantic_cols]
+        vec_df = pd.DataFrame([raw_vals], columns=self.feature_cols, dtype=np.float32)
+
+        raw_gaussian = 0.0
+        raw_iforest = 0.0
 
         if self.gaussian_model is not None and hasattr(self.gaussian_model, "compute_scores"):
             try:
                 g_scores = self.gaussian_model.compute_scores(vec_df)
-                res["gaussian_score"] = float(g_scores[0])
+                raw_gaussian = float(g_scores[0])
+                res["gaussian_score"] = float(raw_gaussian)
             except Exception as e:
                 pass
 
         if self.iforest_model is not None and hasattr(self.iforest_model, "decision_function"):
             try:
-                if_raw = self.iforest_model.decision_function(vec_df)[0]
+                if_raw = float(self.iforest_model.decision_function(vec_df)[0])
+                raw_iforest = - if_raw
                 res["iforest_score"] = float(np.clip(0.5 - (if_raw / 0.2), 0.0, 1.0))
             except Exception as e:
                 pass
 
-        res["anomaly_flag"] = (res["gaussian_score"] > 0.05) or (res["iforest_score"] > 0.60)
+        if self.ensemble_scaler is not None and self.ensemble_meta_model is not None:
+            try:
+                raw_pair = np.array([[raw_gaussian, raw_iforest]], dtype=np.float64)
+                z_pair = self.ensemble_scaler.transform(raw_pair)
+                prob = float(self.ensemble_meta_model.predict_proba(z_pair)[0, 1])
+                res["ensemble_prob"] = prob
+                res["anomaly_flag"] = prob > 0.50
+            except Exception as e:
+                res["anomaly_flag"] = (res["gaussian_score"] > 0.05) or (res["iforest_score"] > 0.50)
+        else:
+            res["anomaly_flag"] = (res["gaussian_score"] > 0.05) or (res["iforest_score"] > 0.50)
+
         return res
 
 
@@ -329,12 +376,19 @@ class LiveSimulationEngine:
         self.speed_multiplier = max(0.1, min(3600.0, float(multiplier)))
         print(f"[Sim Engine] Speed multiplier set to {self.speed_multiplier}x")
 
-    def set_satellite_elements(self, orbiter_index: int, altitude_km: float, inclination_deg: float):
-        self.custom_elements[orbiter_index] = {
-            "altitude_km": max(100.0, min(10000.0, altitude_km)),
-            "inclination_deg": max(0.0, min(180.0, inclination_deg))
+    def set_satellite_elements(self, orbiter_index: int, altitude_km: float, inclination_deg: float, raan_deg: float = 0.0, true_anomaly_deg: Optional[float] = None):
+        entry = {
+            "altitude_km": max(100.0, min(10000.0, float(altitude_km))),
+            "inclination_deg": max(0.0, min(180.0, float(inclination_deg))),
+            "raan_deg": float(raan_deg) % 360.0,
+            "true_anomaly_deg": float(true_anomaly_deg) % 360.0 if true_anomaly_deg is not None else None
         }
-        print(f"[Sim Engine] Updated orbiter_{orbiter_index}: alt={altitude_km}km, inc={inclination_deg}deg")
+        self.custom_elements[orbiter_index] = entry
+        print(f"[Sim Engine] Updated orbiter_{orbiter_index}: alt={altitude_km}km, inc={inclination_deg}deg, raan={raan_deg}deg, nu0={entry['true_anomaly_deg']}")
+
+    def reset_constellation_elements(self):
+        self.custom_elements.clear()
+        print("[Sim Engine] Constellation reset to default single-plane baseline")
 
     def inject_fault(self, node_id: str, fault_type: str):
         self.fault_states[node_id] = {
@@ -374,7 +428,7 @@ class LiveSimulationEngine:
             self.recording_file = None
             return msg
 
-    def compute_tick_state(self) -> Dict[str, Any]:
+    def compute_tick_state(self, run_ml_inference: bool = True) -> Dict[str, Any]:
         """Propagates orbiters and calculates contacts, telemetry, and model inference for current sim_time_s."""
         t_sec = self.sim_time_s
         theta = MARS_OMEGA_RAD_S * t_sec
@@ -384,31 +438,44 @@ class LiveSimulationEngine:
 
         for i in range(self.n):
             node_id = f"orbiter_{i}"
-            elem = self.custom_elements.get(i, {"altitude_km": 400.0, "inclination_deg": 90.0})
-            alt_km = elem["altitude_km"]
-            inc_deg = elem["inclination_deg"]
+            default_nu0_deg = i * (360.0 / self.n)
+            elem = self.custom_elements.get(i, {})
+            alt_km = elem.get("altitude_km", 400.0)
+            inc_deg = elem.get("inclination_deg", 90.0)
+            raan_deg = elem.get("raan_deg", 0.0)
+            nu0_deg = elem.get("true_anomaly_deg")
+            if nu0_deg is None:
+                nu0_deg = default_nu0_deg
 
             a_orbit_km = R_MARS_KM + alt_km
             n_mean = math.sqrt(MU_MARS_KM3_S2 / (a_orbit_km**3))
 
-            nu_0 = i * (2.0 * math.pi / self.n)
-            nu_t = nu_0 + n_mean * t_sec
+            nu_rad = math.radians(nu0_deg) + n_mean * t_sec
 
             fault = self.fault_states.get(node_id, {})
             fault_type = fault.get("fault_type", "none")
 
             if fault_type == "clock_drift":
                 dt_fault = (t_sec - fault["injected_at"]) * 0.05
-                nu_t += n_mean * dt_fault
+                nu_rad += n_mean * dt_fault
             elif fault_type == "altitude_decay":
                 decay_km = (t_sec - fault["injected_at"]) * 0.01
                 alt_km = max(150.0, alt_km - decay_km)
                 a_orbit_km = R_MARS_KM + alt_km
 
             inc_rad = math.radians(inc_deg)
-            x_mci = a_orbit_km * math.cos(nu_t)
-            y_mci = a_orbit_km * math.sin(nu_t) * math.cos(inc_rad)
-            z_mci = a_orbit_km * math.sin(nu_t) * math.sin(inc_rad)
+            raan_rad = math.radians(raan_deg)
+
+            cos_u = math.cos(nu_rad)
+            sin_u = math.sin(nu_rad)
+            cos_O = math.cos(raan_rad)
+            sin_O = math.sin(raan_rad)
+            cos_i = math.cos(inc_rad)
+            sin_i = math.sin(inc_rad)
+
+            x_mci = a_orbit_km * (cos_u * cos_O - sin_u * sin_O * cos_i)
+            y_mci = a_orbit_km * (cos_u * sin_O + sin_u * cos_O * cos_i)
+            z_mci = a_orbit_km * (sin_u * sin_i)
 
             vel_km_s = math.sqrt(MU_MARS_KM3_S2 * (2.0 / a_orbit_km - 1.0 / a_orbit_km))
 
@@ -427,6 +494,9 @@ class LiveSimulationEngine:
                 "latitude_deg": float(geod["latitude_deg"]),
                 "longitude_deg": float(geod["longitude_deg"]),
                 "altitude_km": float(geod["altitude_km"]),
+                "inclination_deg": float(inc_deg),
+                "raan_deg": float(raan_deg),
+                "true_anomaly_deg": float(math.degrees(nu_rad) % 360.0),
                 "velocity_km_s": float(vel_km_s),
                 "cartesian_km": [float(x_fixed), float(y_fixed), float(z_fixed)],
                 "fault_type": fault_type,
@@ -517,7 +587,7 @@ class LiveSimulationEngine:
                 "num_visible_orbiters": float(num_orb_vis),
                 "num_visible_rovers": float(num_rov_vis),
                 "window_open_fraction": 0.46,
-                "time_since_last_contact_sec": 0.0 if is_ground else 120.0,
+                "time_since_last_contact_sec": 0.0 if is_ground else 5034.0,
                 "pos_x": float(pos_fixed[0]),
                 "pos_y": float(pos_fixed[1]),
                 "pos_z": float(pos_fixed[2]),
@@ -545,7 +615,10 @@ class LiveSimulationEngine:
                 feat_34["accel_proxy"] = 2.1
                 feat_34["heading_change_rate"] = 0.05
 
-            pred = inference_engine.predict(feat_34)
+            if run_ml_inference:
+                pred = inference_engine.predict(feat_34)
+            else:
+                pred = {"gaussian_score": 0.0, "iforest_score": 0.0, "anomaly_flag": False}
             orb["inference"] = pred
 
             if self.recording_enabled:
@@ -698,7 +771,13 @@ async def websocket_sim_endpoint(websocket: WebSocket):
                     idx = int(data.get("orbiter_index", 0))
                     alt = float(data.get("altitude_km", 400.0))
                     inc = float(data.get("inclination_deg", 90.0))
-                    sim_engine.set_satellite_elements(idx, alt, inc)
+                    raan = float(data.get("raan_deg", 0.0))
+                    nu0 = data.get("true_anomaly_deg", None)
+                    if nu0 is not None:
+                        nu0 = float(nu0)
+                    sim_engine.set_satellite_elements(idx, alt, inc, raan, nu0)
+                elif action == "reset_constellation":
+                    sim_engine.reset_constellation_elements()
                 elif action == "inject_fault":
                     node_id = str(data.get("node_id", ""))
                     fault_type = str(data.get("fault_type", "clock_drift"))

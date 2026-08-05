@@ -39,9 +39,9 @@ class GaussianDensityModel:
     def fit(self, X):
         if isinstance(X, pd.DataFrame):
             self.feature_names = list(X.columns)
-            X_arr = X.to_numpy(dtype=np.float64)
+            X_arr = X.to_numpy(dtype=np.float32)
         else:
-            X_arr = np.asarray(X, dtype=np.float64)
+            X_arr = np.asarray(X, dtype=np.float32)
             self.feature_names = [f"f_{i}" for i in range(X_arr.shape[1])]
             
         self.mu = np.mean(X_arr, axis=0, dtype=np.float64)
