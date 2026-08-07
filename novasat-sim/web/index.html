@@ -117,6 +117,7 @@
             <select id="select-fault-type" class="custom-select">
               <option value="clock_drift">Clock Drift Skew</option>
               <option value="altitude_decay">Orbital Altitude Decay</option>
+              <option value="bundle_tamper">BPSec Bundle Tamper (BIB/BCB)</option>
             </select>
           </div>
           <div style="display: flex; gap: 8px;">
@@ -143,6 +144,10 @@
           <div class="val-row">
             <span class="val-label">Leakage-Safe Model Engine</span>
             <span id="val-model-engine" class="val-value val-pass">Gaussian &amp; iForest (Frozen Weights)</span>
+          </div>
+          <div class="val-row">
+            <span class="val-label">BPSec Bundle Security</span>
+            <span id="val-bpsec" class="val-value val-pass">Ed25519 BIB + AES-256-GCM BCB (Verified)</span>
           </div>
           <div class="val-row">
             <span class="val-label">Recorded Session File</span>

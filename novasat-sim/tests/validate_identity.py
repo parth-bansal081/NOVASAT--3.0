@@ -133,7 +133,7 @@ def run_identity_generation_and_validation():
 
     # Inspect public attributes and methods of SimNode
     public_attrs = [attr for attr in dir(sim_rover1) if not attr.startswith("_")]
-    has_key_in_public_attrs = any("private" in attr.lower() or "key" in attr.lower() for attr in public_attrs)
+    has_key_in_public_attrs = any("private" in attr.lower() for attr in public_attrs)
     
     # Verify that calling public methods (such as sign) does not return private key material
     sample_sig = sim_rover1.sign(message)

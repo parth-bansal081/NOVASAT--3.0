@@ -248,7 +248,7 @@ class Mars3DRenderer {
     let beamColor = Cesium.Color.SPRINGGREEN;
     if (linkType === "orbiter_orbiter") beamColor = Cesium.Color.DEEPSKYBLUE;
     if (linkType === "amber_watch") beamColor = Cesium.Color.GOLD;
-    if (linkType === "red_warning") beamColor = Cesium.Color.RED;
+    if (linkType === "red_warning" || linkType === "tampered") beamColor = Cesium.Color.RED;
 
     if (!this.contactLinkEntities.has(linkId)) {
       const entity = this.viewer.entities.add({
@@ -398,9 +398,23 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         if (posA && posB) {
-          renderer.setContactLink(`link_${idx}`, posA, posB, link.link_type);
+          const effectiveLinkType = (link.bpsec && link.bpsec.integrity_status === "tampered") ? "tampered" : link.link_type;
+          renderer.setContactLink(`link_${idx}`, posA, posB, effectiveLinkType);
         }
       });
+    }
+
+    // Update BPSec Live Validation Status
+    const valBpsec = document.getElementById("val-bpsec");
+    if (valBpsec && data.active_contacts) {
+      const hasTampered = data.active_contacts.some(c => c.bpsec && c.bpsec.integrity_status === "tampered");
+      if (hasTampered) {
+        valBpsec.className = "val-value val-fail";
+        valBpsec.textContent = "BUNDLE TAMPER DETECTED (AES-GCM Tag Mismatch)";
+      } else {
+        valBpsec.className = "val-value val-pass";
+        valBpsec.textContent = "Ed25519 BIB + AES-256-GCM BCB (Verified)";
+      }
     }
 
     // Render 3D Conjunction Risk Rays (Amber Watch / Red Trigger Warning)

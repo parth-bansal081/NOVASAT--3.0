@@ -6,8 +6,9 @@ import datetime
 from typing import Dict, Any
 from cryptography import x509
 from cryptography.hazmat.primitives.asymmetric import ed25519
+from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
 
-from identity import sign_message, create_csr
+from identity import sign_message, create_csr, generate_x25519_keypair
 
 
 def create_trust_store(
@@ -37,20 +38,36 @@ class SimNode:
     """
     Represents a simulated node (orbiter or rover) enforcing strict private key isolation per Section 9.
     
-    The private key is stored in self._private_key (protected attribute) and is NEVER returned
-    or exposed through any public attribute or method. The only public interaction for signing
-    is the sign() method, which returns the raw signature bytes.
+    Private keys (Ed25519 for signing, X25519 for DH key exchange) are stored in protected
+    attributes (_private_key, _x25519_private_key) and are NEVER returned or exposed through
+    any public attribute or method.
     """
-    def __init__(self, node_id: str, private_key: ed25519.Ed25519PrivateKey, certificate: x509.Certificate, trust_store: Dict[str, Any]):
+    def __init__(
+        self,
+        node_id: str,
+        private_key: ed25519.Ed25519PrivateKey,
+        certificate: x509.Certificate,
+        trust_store: Dict[str, Any],
+        x25519_private_key: X25519PrivateKey = None,
+    ):
         self.node_id = node_id
         self.certificate = certificate
         self.trust_store = trust_store
-        # Private key is private to this node instance
+        # Ed25519 private key — signing only (BIB)
         self._private_key = private_key
+        # X25519 private key — DH key exchange only (BCB)
+        self._x25519_private_key = x25519_private_key
+        # X25519 public key — safe to share for DH exchange
+        self._x25519_public_key = x25519_private_key.public_key() if x25519_private_key else None
+
+    @property
+    def x25519_public_key(self) -> X25519PublicKey | None:
+        """Public X25519 key, safe to share for Diffie-Hellman exchange."""
+        return self._x25519_public_key
 
     def sign(self, message: bytes) -> bytes:
         """
-        Signs a message using the node's private key.
+        Signs a message using the node's Ed25519 private key.
         Returns ONLY the signature bytes — the private key remains isolated inside.
         """
         return sign_message(message, self._private_key)
@@ -65,14 +82,19 @@ class SimNode:
     ) -> "SimNode":
         """
         Pre-flight provisioning of a node:
-        1. Node generates keypair locally.
-        2. Node creates CSR.
-        3. CA signs CSR to produce node certificate.
-        4. Node initializes its trust store.
+        1. Node generates Ed25519 keypair locally (signing / BIB).
+        2. Node generates X25519 keypair locally (DH key exchange / BCB).
+        3. Node creates CSR from Ed25519 key.
+        4. CA signs CSR to produce node certificate.
+        5. Node initializes its trust store.
         """
+        # Ed25519 keypair for signing
         node_private_key = ed25519.Ed25519PrivateKey.generate()
         csr = create_csr(node_id, node_private_key)
-        
+
+        # X25519 keypair for DH key exchange
+        x25519_priv, _ = generate_x25519_keypair()
+
         # CA signs CSR
         now = datetime.datetime.now(datetime.timezone.utc)
         node_cert = (
@@ -95,4 +117,4 @@ class SimNode:
         full_certs[node_id] = node_cert
 
         trust_store = create_trust_store(ca_cert, full_certs)
-        return cls(node_id, node_private_key, node_cert, trust_store)
+        return cls(node_id, node_private_key, node_cert, trust_store, x25519_priv)

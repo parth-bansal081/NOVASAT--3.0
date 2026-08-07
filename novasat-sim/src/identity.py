@@ -7,6 +7,7 @@ from cryptography import x509
 from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
+from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
 from cryptography.exceptions import InvalidSignature
 
 from config import CERT_VALIDITY_DAYS
@@ -15,6 +16,13 @@ from config import CERT_VALIDITY_DAYS
 def generate_keypair() -> tuple[ed25519.Ed25519PrivateKey, ed25519.Ed25519PublicKey]:
     """Generates one Ed25519 keypair."""
     private_key = ed25519.Ed25519PrivateKey.generate()
+    public_key = private_key.public_key()
+    return private_key, public_key
+
+
+def generate_x25519_keypair() -> tuple[X25519PrivateKey, X25519PublicKey]:
+    """Generates one X25519 keypair for Diffie-Hellman key exchange (BCB encryption)."""
+    private_key = X25519PrivateKey.generate()
     public_key = private_key.public_key()
     return private_key, public_key
 

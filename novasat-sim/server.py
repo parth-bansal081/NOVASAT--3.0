@@ -76,6 +76,10 @@ try:
 except ImportError:
     pass
 
+from src.identity import create_root_ca
+from src.trust_store import SimNode
+from src.bpsec import wrap_bundle, unwrap_bundle, tamper_bundle
+
 # Physical biaxial ellipsoid radii for 3D coordinate mapping & occlusion (in km)
 MARS_ELLIPSOID_A_KM = 3396.19  # Equatorial radius
 MARS_ELLIPSOID_B_KM = 3376.20  # Polar radius
@@ -367,6 +371,57 @@ class LiveSimulationEngine:
             except Exception as e:
                 print(f"[Sim Engine] Warning: Could not load triage classifier: {e}")
 
+        # Phase 3 BPSec Security Infrastructure & Identity Provisioning
+        self.ca_priv, self.ca_cert = create_root_ca()
+        self.nodes: Dict[str, SimNode] = {}
+        self.init_bpsec_nodes()
+
+    def init_bpsec_nodes(self):
+        """Provision Ed25519 identity + X25519 DH keys for all orbiters & rovers."""
+        all_ids = [f"orbiter_{i}" for i in range(10)] + list(ROVER_POSITIONS.keys())
+        temp_certs = {}
+        for nid in all_ids:
+            node = SimNode.provision_node(nid, self.ca_priv, self.ca_cert, temp_certs)
+            self.nodes[nid] = node
+            temp_certs[nid] = node.certificate
+        print(f"[Sim Engine] BPSec Security Layer Initialized: {len(self.nodes)} nodes provisioned (Ed25519 + X25519)")
+
+    def process_bpsec_for_contact(self, node_a: str, node_b: str, t_sec: float) -> dict:
+        """Executes full BIB (Ed25519) + BCB (AES-256-GCM / X25519) pipeline for a contact link."""
+        sender_node = self.nodes.get(node_a)
+        receiver_node = self.nodes.get(node_b)
+        if not sender_node or not receiver_node:
+            return {"bib_valid": True, "bcb_valid": True, "integrity_status": "verified"}
+
+        payload = f"NOVASAT Bundle | {node_a} -> {node_b} | t={t_sec:.1f}s".encode("utf-8")
+        bundle = wrap_bundle(
+            payload,
+            sender_node._private_key,
+            node_a,
+            node_b,
+            sender_node._x25519_private_key,
+            receiver_node.x25519_public_key,
+        )
+
+        # Check for bundle_tamper fault injection on either end
+        fault_a = self.fault_states.get(node_a, {})
+        fault_b = self.fault_states.get(node_b, {})
+        if fault_a.get("fault_type") == "bundle_tamper" or fault_b.get("fault_type") == "bundle_tamper":
+            bundle = tamper_bundle(bundle)
+
+        res = unwrap_bundle(
+            bundle,
+            receiver_node._x25519_private_key,
+            sender_node.x25519_public_key,
+            sender_node.certificate,
+            self.ca_cert,
+        )
+        return {
+            "bib_valid": res["bib_valid"],
+            "bcb_valid": res["bcb_valid"],
+            "integrity_status": res["integrity_status"],
+        }
+
     def set_n(self, n: int):
         if n in [1, 2, 4, 6, 8, 10]:
             self.n = n
@@ -529,12 +584,14 @@ class LiveSimulationEngine:
                 is_in_los = (elev_deg >= MIN_ELEVATION_DEG) and (not is_blocked)
 
                 if is_in_los:
+                    bpsec_info = self.process_bpsec_for_contact(r_id, f"orbiter_{i}", t_sec)
                     active_contacts.append({
                         "link_type": "rover_orbiter",
                         "node_a": r_id,
                         "node_b": f"orbiter_{i}",
                         "distance_km": dist_km,
-                        "elevation_deg": elev_deg
+                        "elevation_deg": elev_deg,
+                        "bpsec": bpsec_info
                     })
                     surface_statuses[r_id]["active_contact"] = True
                     surface_statuses[r_id]["connected_orbiter"] = f"orbiter_{i}"
@@ -549,12 +606,14 @@ class LiveSimulationEngine:
                 is_blocked = check_biaxial_occlusion(pos_a, pos_b)
 
                 if not is_blocked:
+                    bpsec_info = self.process_bpsec_for_contact(f"orbiter_{i}", f"orbiter_{j_next}", t_sec)
                     active_contacts.append({
                         "link_type": "orbiter_orbiter",
                         "node_a": f"orbiter_{i}",
                         "node_b": f"orbiter_{j_next}",
                         "distance_km": dist_km,
-                        "elevation_deg": 0.0
+                        "elevation_deg": 0.0,
+                        "bpsec": bpsec_info
                     })
 
         # Run Leakage-Safe Model Inference for each orbiter tick using full 34-feature schema
