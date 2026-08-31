@@ -1,0 +1,2 @@
+{"type": "bundle", "sim_time_s": 0.0, "node_a": "orbiter_0", "node_b": "orbiter_1", "integrity_status": "verified", "bib_valid": true, "bcb_valid": true}
+{"type": "bundle", "sim_time_s": 0.0, "node_a": "orbiter_1", "node_b": "orbiter_0", "integrity_status": "verified", "bib_valid": true, "bcb_valid": true}

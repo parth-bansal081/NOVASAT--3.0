@@ -59,6 +59,11 @@ class SimNode:
         self._x25519_private_key = x25519_private_key
         # X25519 public key — safe to share for DH exchange
         self._x25519_public_key = x25519_private_key.public_key() if x25519_private_key else None
+        # Ground-station quarantine flag (Track 3 Part A).
+        # In this pass, settable ONLY via a manual ground-station override WS message.
+        # Auto-trigger from swarm_fusion.recommended_action is explicitly deferred
+        # to the 6A implementation pass, when recommended_action carries real values.
+        self.is_isolated: bool = False
 
     @property
     def x25519_public_key(self) -> X25519PublicKey | None:

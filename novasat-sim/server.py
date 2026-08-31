@@ -35,6 +35,34 @@ from datetime import datetime
 from functools import lru_cache
 from typing import Dict, List, Any, Optional
 
+
+# -----------------------------------------------------------------------------
+# Track 3 Part A — Ops Event Log Infrastructure
+# Canonical path: data/ops_events/  ("live_recordings" deliberately avoided;
+# see implementation plan rationale on naming.)
+# -----------------------------------------------------------------------------
+OPS_EVENTS_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), "data", "ops_events")
+os.makedirs(OPS_EVENTS_DIR, exist_ok=True)
+_OPS_SESSION_FILE: Optional[str] = None
+
+
+def _ops_session_file() -> str:
+    """Returns the current session JSONL path, initialising it once per server run."""
+    global _OPS_SESSION_FILE
+    if _OPS_SESSION_FILE is None:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        _OPS_SESSION_FILE = os.path.join(OPS_EVENTS_DIR, f"ops_events_{ts}.jsonl")
+    return _OPS_SESSION_FILE
+
+
+def _append_ops_event(event: Dict[str, Any]) -> None:
+    """Appends a single event dict as a JSONL line to the current session file."""
+    try:
+        with open(_ops_session_file(), "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(event) + "\n")
+    except Exception as exc:
+        print(f"[Ops Events] Warning: failed to write event: {exc}")
+
 import numpy as np
 import pandas as pd
 from PIL import Image
@@ -163,6 +191,8 @@ class AnomalyInferenceEngine:
         iforest_path = os.path.join(models_dir, "isolation_forest_model.pkl")
         scaler_path = os.path.join(models_dir, "ensemble_scaler.pkl")
         meta_path = os.path.join(models_dir, "ensemble_meta_model.pkl")
+        comms_model_path = os.path.join(models_dir, "comms_decision_model.pkl")
+        comms_scaler_path = os.path.join(models_dir, "comms_decision_scaler.pkl")
 
         if os.path.exists(gaussian_path):
             try:
@@ -197,6 +227,24 @@ class AnomalyInferenceEngine:
                 print(f"[Model Engine] Loaded Ensemble Meta-Model from {meta_path}")
             except Exception as e:
                 print(f"[Model Engine] Failed to load Ensemble Meta-Model: {e}")
+
+        self.comms_model = None
+        self.comms_scaler = None
+        if os.path.exists(comms_model_path):
+            try:
+                with open(comms_model_path, "rb") as f:
+                    self.comms_model = pickle.load(f)
+                print(f"[Model Engine] Loaded Comms Decision Model from {comms_model_path}")
+            except Exception as e:
+                print(f"[Model Engine] Failed to load Comms Decision Model: {e}")
+
+        if os.path.exists(comms_scaler_path):
+            try:
+                with open(comms_scaler_path, "rb") as f:
+                    self.comms_scaler = pickle.load(f)
+                print(f"[Model Engine] Loaded Comms Decision Scaler from {comms_scaler_path}")
+            except Exception as e:
+                print(f"[Model Engine] Failed to load Comms Decision Scaler: {e}")
 
     def predict(self, feature_dict: Dict[str, float]) -> Dict[str, float]:
         """Perform read-only inference on exact 34-feature telemetry vector."""
@@ -237,6 +285,59 @@ class AnomalyInferenceEngine:
             res["anomaly_flag"] = (res["gaussian_score"] > 0.05) or (res["iforest_score"] > 0.50)
 
         return res
+
+    def predict_comms_decision(self, feature_dict: Dict[str, float]) -> Dict:
+        """
+        6B Per-Satellite Comms Decision inference.
+        Features: battery_pct, buffer_occupancy_pct, link_margin_db, time_since_last_contact_s.
+        """
+        b_pct = float(feature_dict.get("battery_pct", 85.0))
+        buf_pct = float(feature_dict.get("buffer_occupancy_pct", 10.0))
+        link_db = float(feature_dict.get("link_margin_db", 20.0))
+        dt_sec = float(feature_dict.get("time_since_last_contact_s", 0.0))
+
+        reason_features = {
+            "battery_pct": round(b_pct, 2),
+            "buffer_occupancy_pct": round(buf_pct, 2),
+            "link_margin_db": round(link_db, 2),
+            "time_since_last_contact_s": round(dt_sec, 2),
+        }
+
+        if self.comms_model is not None and self.comms_scaler is not None:
+            try:
+                raw_vec = np.array([[b_pct, buf_pct, link_db, dt_sec]], dtype=np.float32)
+                scaled_vec = self.comms_scaler.transform(raw_vec)
+                p_transmit = float(self.comms_model.predict_proba(scaled_vec)[0, 1])
+            except Exception:
+                p_transmit = 0.85
+        else:
+            # Transparent v1.0 heuristic fallback if pkl is not loaded
+            healthy = b_pct >= 20.0
+            trigger = (buf_pct >= 60.0) or (link_db >= 15.0) or (dt_sec >= 1800.0)
+            p_transmit = 0.90 if (healthy and trigger) else (0.15 if not healthy else 0.45)
+
+        should_transmit = bool(p_transmit >= 0.5)
+        confidence = float(abs(p_transmit - 0.5) * 2.0)
+
+        if not should_transmit:
+            if b_pct < 20.0:
+                hold_reason = f"Low battery ({b_pct:.1f}% < 20%)"
+            elif link_db < 10.0:
+                hold_reason = f"Low link margin ({link_db:.1f} dB < 10 dB)"
+            elif buf_pct < 15.0:
+                hold_reason = f"Low buffer occupancy ({buf_pct:.1f}% < 15%)"
+            else:
+                hold_reason = f"Policy hold (p_transmit={p_transmit:.2f})"
+        else:
+            hold_reason = "Nominal transmission"
+
+        return {
+            "should_transmit": should_transmit,
+            "p_transmit": round(p_transmit, 4),
+            "confidence": round(confidence, 4),
+            "hold_reason": hold_reason,
+            "reason_features": reason_features,
+        }
 
 
 inference_engine = AnomalyInferenceEngine()
@@ -360,7 +461,28 @@ class LiveSimulationEngine:
         self.max_pc_pair: Optional[str] = None
         self.maneuver_logs: List[Dict[str, Any]] = []
         self.last_conjunction_eval_time: float = -3600.0
+        self._conjunction_has_run: bool = False
+        self.conjunction_eval_count: int = 0
         self.triage_model = None
+
+        # Track 3 Part A — Ops Window counters and event log.
+        # Counters are incremented at decision time (not at render time).
+        # The client renders ops_window_totals verbatim — it never recomputes.
+        self.ops_window_totals: Dict[str, int] = {
+            "value_delivered": 0,
+            "bundles_exchanged": 0,
+            "anomalies_flagged": 0,
+            "maneuvers_executed": 0,
+            "comms_hold_decisions": 0,   # non-zero when 6B is real
+            "ground_overrides": 0,
+        }
+        # In-memory event log for the Ops Window event log panel.
+        # Mirrored to data/ops_events/ JSONL at decision time.
+        # Client view is capped at 500 recent rows; server retains all.
+        self.event_log: List[Dict[str, Any]] = []
+        # Initialise JSONL session file path eagerly so the timestamp is
+        # anchored to server start, not to first event.
+        _ops_session_file()
 
         triage_pkl = os.path.join(ROOT_DIR, "models", "triage_classifier.pkl")
         if os.path.exists(triage_pkl):
@@ -387,11 +509,28 @@ class LiveSimulationEngine:
         print(f"[Sim Engine] BPSec Security Layer Initialized: {len(self.nodes)} nodes provisioned (Ed25519 + X25519)")
 
     def process_bpsec_for_contact(self, node_a: str, node_b: str, t_sec: float) -> dict:
-        """Executes full BIB (Ed25519) + BCB (AES-256-GCM / X25519) pipeline for a contact link."""
+        """Executes full BIB (Ed25519) + BCB (AES-256-GCM / X25519) pipeline for a contact link.
+
+        Track 3 Part A: Checks is_isolated on both nodes first. An isolated node
+        gets no bundle exchange — returns integrity_status='quarantined' immediately
+        and does NOT log or count a bundle event. Only a manual ground-station override
+        can set is_isolated in this pass; auto-trigger from swarm_fusion.recommended_action
+        is deferred to the 6A implementation pass.
+        """
         sender_node = self.nodes.get(node_a)
         receiver_node = self.nodes.get(node_b)
         if not sender_node or not receiver_node:
             return {"bib_valid": True, "bcb_valid": True, "integrity_status": "verified"}
+
+        # --- Quarantine check (Track 3 Part A) ---
+        if sender_node.is_isolated or receiver_node.is_isolated:
+            isolated_id = node_a if sender_node.is_isolated else node_b
+            return {
+                "bib_valid": False,
+                "bcb_valid": False,
+                "integrity_status": "quarantined",
+                "isolated_node": isolated_id,
+            }
 
         payload = f"NOVASAT Bundle | {node_a} -> {node_b} | t={t_sec:.1f}s".encode("utf-8")
         bundle = wrap_bundle(
@@ -416,6 +555,21 @@ class LiveSimulationEngine:
             sender_node.certificate,
             self.ca_cert,
         )
+
+        # --- Log and count every successful exchange (Track 3 Part A) ---
+        self.ops_window_totals["bundles_exchanged"] += 1
+        event = {
+            "type": "bundle",
+            "sim_time_s": float(t_sec),
+            "node_a": node_a,
+            "node_b": node_b,
+            "integrity_status": res["integrity_status"],
+            "bib_valid": res["bib_valid"],
+            "bcb_valid": res["bcb_valid"],
+        }
+        self.event_log.append(event)
+        _append_ops_event(event)
+
         return {
             "bib_valid": res["bib_valid"],
             "bcb_valid": res["bcb_valid"],
@@ -461,6 +615,13 @@ class LiveSimulationEngine:
         self.sim_time_s = 0.0
         self.fault_states.clear()
         self.recorded_rows.clear()
+        self._conjunction_has_run = False
+        self.last_conjunction_eval_time = -3600.0
+        self.conjunction_risks.clear()
+        self.max_pc = 0.0
+        self.max_pc_pair = None
+        self.conjunction_eval_count = 0
+        self.maneuver_logs.clear()
         print("[Sim Engine] Simulation reset to t = 0s")
 
     def toggle_record(self, enabled: bool) -> str:
@@ -680,6 +841,20 @@ class LiveSimulationEngine:
                 pred = {"gaussian_score": 0.0, "iforest_score": 0.0, "anomaly_flag": False}
             orb["inference"] = pred
 
+            # Track 3 Part A — increment anomalies_flagged at detection time
+            if pred.get("anomaly_flag", False):
+                self.ops_window_totals["anomalies_flagged"] += 1
+                anomaly_event = {
+                    "type": "anomaly",
+                    "sim_time_s": float(t_sec),
+                    "node_id": orb["id"],
+                    "gaussian_score": pred.get("gaussian_score", 0.0),
+                    "iforest_score": pred.get("iforest_score", 0.0),
+                    "ensemble_prob": pred.get("ensemble_prob", 0.0),
+                }
+                self.event_log.append(anomaly_event)
+                _append_ops_event(anomaly_event)
+
             if self.recording_enabled:
                 rec_row = {
                     "sim_time_s": t_sec,
@@ -693,13 +868,15 @@ class LiveSimulationEngine:
                 self.recorded_rows.append(rec_row)
 
         # Conjunction Risk Assessment Pass (Decoupled Hourly Cadence - Part A.1)
-        if self.sim_time_s - self.last_conjunction_eval_time >= 3600.0 or not self.conjunction_risks:
+        if self.sim_time_s - self.last_conjunction_eval_time >= 3600.0 or not self._conjunction_has_run:
             try:
+                self.conjunction_eval_count += 1
                 res = evaluate_all_pairs_conjunction(orbiters_state, lookahead_sec=86400.0, triage_model=self.triage_model)
                 self.conjunction_risks = res["risks"]
                 self.max_pc = res["max_pc"]
                 self.max_pc_pair = res["max_pc_pair"]
                 self.last_conjunction_eval_time = self.sim_time_s
+                self._conjunction_has_run = True
 
                 # Check for deterministic maneuver triggers (Pc > 1e-4 - Part E)
                 for risk in res["risks"]:
@@ -729,6 +906,7 @@ class LiveSimulationEngine:
                                 "action": "AUTO_MANEUVER_EXECUTED"
                             }
                             self.maneuver_logs.append(maneuver_entry)
+                            self.ops_window_totals["maneuvers_executed"] += 1
                             print(f"[Collision Avoidance] AUTO-MANEUVER TRIGGERED: {sat_a_id} vs {risk['sat_B']} (Pc={risk['pc']:.2e}, New Alt={new_alt:.1f}km)")
                         except Exception as ex:
                             print(f"[Collision Avoidance] Error executing maneuver: {ex}")
@@ -741,6 +919,54 @@ class LiveSimulationEngine:
         mins = int((rem % 3600) // 60)
         secs = int(rem % 60)
         clock_str = f"Day {days:02d} — {hrs:02d}:{mins:02d}:{secs:02d}"
+
+        # 6B Per-satellite comms_decision model inference pass
+        comms_decision = {}
+        for orb in orbiters_state:
+            node = self.nodes.get(orb["id"])
+            feat_34 = orb.get("features", {})
+
+            b_pct = float(feat_34.get("power_level", 85.0))
+            if b_pct <= 1.0:
+                b_pct *= 100.0
+
+            buf_pct = float(feat_34.get("queue_depth", 10.0))
+            if buf_pct <= 1.0 and buf_pct > 0.0:
+                buf_pct *= 100.0
+
+            in_contact = float(feat_34.get("in_contact_with_ground", 0.0))
+            link_margin = 20.0 if in_contact > 0.5 else 5.0
+            dt_contact = float(feat_34.get("time_since_last_contact_sec", 0.0))
+
+            cd_input = {
+                "battery_pct": b_pct,
+                "buffer_occupancy_pct": buf_pct,
+                "link_margin_db": link_margin,
+                "time_since_last_contact_s": dt_contact,
+            }
+
+            cd_res = inference_engine.predict_comms_decision(cd_input)
+
+            is_iso = node.is_isolated if node else False
+            if not cd_res["should_transmit"] and not is_iso:
+                self.ops_window_totals["comms_hold_decisions"] += 1
+
+            comms_decision[orb["id"]] = {
+                "should_transmit": cd_res["should_transmit"],
+                "p_transmit": cd_res["p_transmit"],
+                "confidence": cd_res["confidence"],
+                "hold_reason": cd_res["hold_reason"],
+                "reason_features": cd_res["reason_features"],
+                "is_isolated": is_iso,
+            }
+
+        swarm_fusion = {
+            "target_satellite_id": None,           # stub: 6A will populate
+            "fused_probability": 0.0,              # stub: 6A will populate
+            "contributing_satellite_ids": [],      # stub: 6A will populate
+            "recommended_action": "none",          # stub: 6A will wire to is_isolated
+            "ground_override": None,               # set by override WS command
+        }
 
         return {
             "timestamp": time.time(),
@@ -758,7 +984,12 @@ class LiveSimulationEngine:
             "max_pc": float(self.max_pc),
             "max_pc_pair": self.max_pc_pair,
             "maneuver_logs": self.maneuver_logs[-20:],
-            "orbital_period_min": float(2.0 * math.pi * math.sqrt((R_MARS_KM + 400.0)**3 / MU_MARS_KM3_S2) / 60.0)
+            "orbital_period_min": float(2.0 * math.pi * math.sqrt((R_MARS_KM + 400.0)**3 / MU_MARS_KM3_S2) / 60.0),
+            # Track 3 Part A new fields (exact spec field names)
+            "comms_decision": comms_decision,
+            "swarm_fusion": swarm_fusion,
+            "ops_window_totals": dict(self.ops_window_totals),
+            "ops_event_log": self.event_log[-500:],
         }
 
     def update(self):
@@ -853,6 +1084,32 @@ async def websocket_sim_endpoint(websocket: WebSocket):
                 elif action == "toggle_record":
                     enabled = bool(data.get("enabled", False))
                     sim_engine.toggle_record(enabled)
+
+                elif action in ("override", "type_override"):
+                    # Track 3 Part A — ground-station override command.
+                    # WS message: {"action": "override", "satellite_id": str,
+                    #              "override_action": "isolate"|"clear",
+                    #              "operator_note": str}
+                    # 'type' is accepted as an alias for 'action' per spec note.
+                    sat_id = str(data.get("satellite_id", ""))
+                    override_action = str(data.get("override_action", "")).lower()
+                    operator_note = str(data.get("operator_note", ""))
+                    target_node = sim_engine.nodes.get(sat_id)
+                    if target_node and override_action in ("isolate", "clear"):
+                        target_node.is_isolated = (override_action == "isolate")
+                        sim_engine.ops_window_totals["ground_overrides"] += 1
+                        override_event = {
+                            "type": "override",
+                            "sim_time_s": float(sim_engine.sim_time_s),
+                            "satellite_id": sat_id,
+                            "override_action": override_action,
+                            "operator_note": operator_note,
+                        }
+                        sim_engine.event_log.append(override_event)
+                        _append_ops_event(override_event)
+                        print(f"[Ops Override] {override_action.upper()} applied to '{sat_id}' | note: '{operator_note}'")
+                    elif not target_node:
+                        print(f"[Ops Override] Warning: satellite_id '{sat_id}' not found")
 
             except asyncio.TimeoutError:
                 pass

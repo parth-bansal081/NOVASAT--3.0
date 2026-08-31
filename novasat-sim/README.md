@@ -37,3 +37,10 @@ In `trust_store.py`, each node's private key is encapsulated within `self._priva
    python validate_identity.py
    ```
 
+4. **Run Track 3 Ops Totals & Deterministic Scenario Validation:**
+   ```bash
+   python run_deterministic_scenario.py
+   python validate_ops_totals.py --n 2 --n-ticks 100 --sim-dt 288.0 --expected-overrides 1
+   ```
+   *Note on expected bundle counts:* Ground-truth expected counts (e.g. 9 for N=2, 100 ticks @ 288s step with `orbiter_0` isolated at tick 50) are derived independently from Keplerian orbital mechanics via `compute_expected_contacts.py` ($12\text{ unisolated} - 3\text{ isolated} = 9$). `validate_ops_totals.py` calls `compute_expected_contacts.count_contacts_independently()` automatically unless `--expected-bundles <N>` is explicitly specified.
+

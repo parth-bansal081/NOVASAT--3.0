@@ -36,22 +36,29 @@ def compute_pair_conjunction(
     n_A = math.sqrt(MU / (r_A_mag**3))
     n_B = math.sqrt(MU / (r_B_mag**3))
 
-    # Unit vectors for orbital plane A and B
-    u_A_0 = math.atan2(pos_A_km[2], pos_A_km[0])
-    u_B_0 = math.atan2(pos_B_km[2], pos_B_km[0])
+    # 3D Orthonormal basis vectors for orbital planes A and B
+    e1_A = pos_A_km / r_A_mag
+    v_perp_A = vel_A_km_s - np.dot(vel_A_km_s, e1_A) * e1_A
+    norm_v_A = np.linalg.norm(v_perp_A)
+    e2_A = v_perp_A / norm_v_A if norm_v_A > 1e-12 else np.array([0.0, 1.0, 0.0])
 
-    # Vectorized trajectory sampling over lookahead window
-    dt = np.linspace(0.0, min(86400.0, lookahead_sec), 72, dtype=np.float64)
-    u_A_t = u_A_0 + n_A * dt
-    u_B_t = u_B_0 + n_B * dt
+    e1_B = pos_B_km / r_B_mag
+    v_perp_B = vel_B_km_s - np.dot(vel_B_km_s, e1_B) * e1_B
+    norm_v_B = np.linalg.norm(v_perp_B)
+    e2_B = v_perp_B / norm_v_B if norm_v_B > 1e-12 else np.array([0.0, 1.0, 0.0])
 
-    p_A_x = r_A_mag * np.cos(u_A_t)
-    p_A_z = r_A_mag * np.sin(u_A_t)
+    # Vectorized 3D trajectory sampling over lookahead window
+    dt = np.linspace(0.0, min(86400.0, lookahead_sec), 360, dtype=np.float64)
 
-    p_B_x = r_B_mag * np.cos(u_B_t)
-    p_B_z = r_B_mag * np.sin(u_B_t)
+    cos_A = np.cos(n_A * dt)[:, None]
+    sin_A = np.sin(n_A * dt)[:, None]
+    p_A = r_A_mag * (cos_A * e1_A + sin_A * e2_A)
 
-    dists = np.sqrt((p_B_x - p_A_x)**2 + (p_B_z - p_A_z)**2)
+    cos_B = np.cos(n_B * dt)[:, None]
+    sin_B = np.sin(n_B * dt)[:, None]
+    p_B = r_B_mag * (cos_B * e1_B + sin_B * e2_B)
+
+    dists = np.linalg.norm(p_B - p_A, axis=1)
     min_idx = np.argmin(dists)
     min_dist_km = float(dists[min_idx])
     best_tca_sec = float(dt[min_idx])

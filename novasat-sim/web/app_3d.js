@@ -293,6 +293,21 @@ class Mars3DRenderer {
 document.addEventListener("DOMContentLoaded", () => {
   const renderer = new Mars3DRenderer("cesiumContainer");
 
+  // Track 3 Part A: Ops Window — sibling renderer, shares the same WS stream.
+  // Instantiated before WS connects; WS ref injected after open.
+  const opsWindow = new OpsWindow("ops-window-container", null);
+
+  // Listen for close event dispatched by the OpsWindow close button
+  document.addEventListener('ops-window-close', () => {
+    // Restore 3D globe visibility (the Cesium container is always rendering;
+    // the Ops Window overlay just covered it)
+    const btnOps = document.getElementById('btn-ops-window');
+    if (btnOps) {
+      btnOps.classList.remove('btn-ops-active');
+      btnOps.textContent = '📊 Ops Window';
+    }
+  });
+
   // Pre-seed fixed surface rovers
   renderer.addSurfaceAsset("rover_1", "rover_1 (Jezero)", 18.4663, 77.4298, 0.0);
   renderer.addSurfaceAsset("rover_2", "rover_2 (Gale)", -4.5895, 137.4417, 0.0);
@@ -342,12 +357,15 @@ document.addEventListener("DOMContentLoaded", () => {
       console.log("[WebSocket] Connected to live backend");
       document.getElementById("ws-status-text").className = "val-value val-pass";
       document.getElementById("ws-status-text").textContent = `🟢 Connected (${wsUrl})`;
+      // Pass WS ref to OpsWindow so its override form can send commands
+      opsWindow.setWs(ws);
     };
 
     ws.onclose = () => {
       console.warn("[WebSocket] Connection closed. Reconnecting in 2s...");
       document.getElementById("ws-status-text").className = "val-value val-warn";
       document.getElementById("ws-status-text").textContent = "🟡 Reconnecting...";
+      opsWindow.setWs(null);
       setTimeout(connectWebSocket, 2000);
     };
 
@@ -358,6 +376,9 @@ document.addEventListener("DOMContentLoaded", () => {
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       handleSimulationFrame(data);
+      // Track 3 Part A: feed the same tick to OpsWindow.
+      // The toggle is purely a rendering-mode switch; the WS stream is not affected.
+      opsWindow.updateState(data);
     };
   }
 
@@ -538,6 +559,17 @@ document.addEventListener("DOMContentLoaded", () => {
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ action: "reset_constellation" }));
       }
+    });
+  }
+
+  // Track 3 Part A: Ops Window toggle — client-side rendering-mode switch only.
+  // The WS connection and physics tick are completely unaffected.
+  const btnOpsWindow = document.getElementById('btn-ops-window');
+  if (btnOpsWindow) {
+    btnOpsWindow.addEventListener('click', () => {
+      const isNowVisible = opsWindow.toggle();
+      btnOpsWindow.classList.toggle('btn-ops-active', isNowVisible);
+      btnOpsWindow.textContent = isNowVisible ? '🌍 3D Globe' : '📊 Ops Window';
     });
   }
 

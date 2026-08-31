@@ -532,3 +532,293 @@ input[type="range"].orb-slider[data-param="nu"]::-webkit-slider-thumb {
   background: var(--accent-yellow);
   box-shadow: 0 0 6px rgba(255, 214, 0, 0.5);
 }
+
+/* =============================================================================
+   Track 3 Part A — Ops Window Styles
+   Full-viewport overlay toggled by .ops-window-hidden / .ops-window-visible.
+   The Cesium globe keeps rendering underneath at all times.
+   The WS stream is completely unaffected by which view is active.
+   ============================================================================= */
+
+/* Ops Window Toggle Button */
+.btn-ops-toggle {
+  background: rgba(0, 229, 255, 0.1);
+  color: var(--accent-cyan);
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  transition: all 0.2s ease;
+}
+.btn-ops-toggle:hover {
+  background: rgba(0, 229, 255, 0.18);
+  border-color: var(--accent-cyan);
+  transform: translateY(-1px);
+}
+.btn-ops-active {
+  background: rgba(0, 229, 255, 0.22) !important;
+  border-color: var(--accent-cyan) !important;
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.35) !important;
+}
+
+/* Full-screen overlay states */
+#ops-window-container {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 950;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: rgba(8, 11, 18, 0.97);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.ops-window-hidden  { display: none !important; }
+.ops-window-visible { display: flex !important; }
+
+/* Ops Window Header */
+.ops-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--panel-border);
+  background: rgba(0, 0, 0, 0.4);
+  flex-shrink: 0;
+}
+.ops-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ops-icon { font-size: 22px; }
+.ops-title h2 {
+  font-family: var(--font-title);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+.ops-subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: rgba(0, 229, 255, 0.08);
+  border: 1px solid rgba(0, 229, 255, 0.2);
+  border-radius: 4px;
+  padding: 2px 8px;
+}
+.ops-header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.ops-clock-badge {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(255, 82, 50, 0.12);
+  border: 1px solid rgba(255, 82, 50, 0.3);
+  border-radius: 6px;
+  padding: 4px 12px;
+}
+
+/* 2-column panel grid */
+.ops-panels-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 14px;
+  overflow-y: auto;
+  flex: 1;
+}
+.ops-panel-wide { grid-column: 1 / -1; }
+.ops-panel-log  { grid-column: 1 / -1; }
+
+/* Individual panel card */
+.ops-panel {
+  background: rgba(13, 19, 31, 0.82);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.ops-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--panel-border);
+  background: rgba(0, 0, 0, 0.25);
+  flex-shrink: 0;
+}
+.ops-panel-title {
+  font-family: var(--font-title);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+.ops-panel-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  background: rgba(0, 229, 255, 0.1);
+  color: var(--accent-cyan);
+  border: 1px solid rgba(0, 229, 255, 0.2);
+  border-radius: 10px;
+  padding: 2px 8px;
+}
+
+/* Table wrappers */
+.ops-table-wrapper       { overflow-x: auto; overflow-y: auto; max-height: 220px; flex: 1; }
+.ops-table-wrapper-short { max-height: 160px; }
+.ops-table-wrapper-log   { max-height: 260px; }
+
+/* Dense data table */
+.ops-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+.ops-table thead th {
+  position: sticky;
+  top: 0;
+  background: rgba(13, 19, 31, 0.98);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--panel-border);
+  text-align: left;
+  white-space: nowrap;
+}
+.ops-table tbody tr {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  transition: background 0.12s ease;
+}
+.ops-table tbody tr:hover { background: rgba(255, 255, 255, 0.03); }
+.ops-table tbody td        { padding: 5px 10px; white-space: nowrap; }
+
+/* Row highlight states */
+.ops-row-isolated { background: rgba(0, 229, 255, 0.05) !important; }
+.ops-row-anomaly  { background: rgba(255, 82, 50, 0.06) !important; }
+.ops-row-crit     { background: rgba(255, 0, 85, 0.08) !important; }
+.ops-row-warn     { background: rgba(255, 214, 0, 0.06) !important; }
+.ops-row-override { background: rgba(0, 229, 255, 0.07) !important; }
+
+/* Cell colour states */
+.ops-cell-id        { color: var(--accent-cyan); font-weight: 600; }
+.ops-cell-good      { color: var(--accent-green); }
+.ops-cell-bad       { color: var(--accent-mars);  }
+.ops-cell-warn      { color: var(--accent-yellow); }
+.ops-cell-muted     { color: var(--text-muted);   }
+.ops-cell-quarantine{ color: var(--accent-cyan);  }
+.ops-cell-bold      { font-weight: 700; }
+.ops-cell-mono      { font-family: var(--font-mono); }
+.ops-cell-stub      { color: var(--text-muted); font-style: italic; }
+.ops-stub-tag {
+  font-size: 9px;
+  background: rgba(255, 214, 0, 0.15);
+  color: var(--accent-yellow);
+  border-radius: 3px;
+  padding: 0 4px;
+  margin-left: 3px;
+  font-style: normal;
+}
+.ops-empty-row {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 18px !important;
+  font-style: italic;
+}
+
+/* Mission totals grid */
+.ops-totals-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--panel-border);
+}
+.ops-total-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 10px;
+  background: rgba(13, 19, 31, 0.9);
+  gap: 4px;
+}
+.ops-total-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-align: center;
+}
+.ops-total-val {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--accent-cyan);
+}
+.ops-total-warn     { color: var(--accent-mars);   }
+.ops-total-override { color: var(--accent-yellow);  }
+.ops-total-muted    { color: var(--text-muted); font-size: 18px; }
+
+/* Ground override form */
+.ops-override-form {
+  padding: 12px 14px;
+  border-top: 1px solid var(--panel-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.2);
+}
+.ops-override-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+}
+.ops-override-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  flex-wrap: wrap;
+}
+.ops-override-row label {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ops-select-sm { padding: 4px 8px; font-size: 11px; }
+.ops-text-input {
+  flex: 1;
+  min-width: 0;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  outline: none;
+}
+.ops-text-input:focus { border-color: var(--accent-cyan); }
+.ops-override-btn {
+  align-self: flex-start;
+  font-size: 12px;
+  padding: 7px 16px;
+  background: linear-gradient(135deg, #0090ff, #005fcc);
+  box-shadow: 0 4px 12px rgba(0, 144, 255, 0.3);
+}
+.ops-override-btn:hover {
+  background: linear-gradient(135deg, #0aa0ff, #006fe0);
+  transform: translateY(-1px);
+}
+.ops-override-status          { font-size: 11px; font-family: var(--font-mono); }
+.ops-override-status-ok       { color: var(--accent-green);  }
+.ops-override-status-warn     { color: var(--accent-yellow); }
+
+/* val-fail — used in app_3d.js collision/tamper detection */
+.val-fail { color: var(--accent-mars); }

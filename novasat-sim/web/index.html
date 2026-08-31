@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NOVASAT Track 2 — 3D CesiumJS Live Telemetry & Anomaly Analyzer</title>
-  <meta name="description" content="Live 3D Mars orbital ground-track, contact window, and real-time model anomaly detection visualization powered by CesiumJS and FastAPI WebSocket backend.">
+  <title>NOVASAT Track 3 — 3D Live Telemetry &amp; Ops Control Window</title>
+  <meta name="description" content="Live 3D Mars orbital ground-track, contact window, real-time anomaly inference, collision risk, and Track 3 Ops Window visualization powered by CesiumJS and FastAPI WebSocket backend.">
 
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -52,6 +52,16 @@
     <!-- Main Cesium 3D Viewport -->
     <main class="map-viewport">
       <div id="cesiumContainer"></div>
+
+      <!--
+        Track 3 Part A: Ops Window full-screen overlay.
+        Visibility toggled client-side via CSS class swap on #ops-window-container.
+        The server keeps streaming full per-tick state regardless of which view is active.
+        The WS connection is shared with app_3d.js; this panel is a pure DOM renderer.
+      -->
+      <div id="ops-window-container" class="ops-window-hidden">
+        <!-- Populated by OpsWindow class in ops_window.js -->
+      </div>
 
       <!-- Floating Telemetry & Controls Side Panel -->
       <aside class="side-panel glass-card">
@@ -194,6 +204,11 @@
             🌐 Reset Swarm
           </button>
 
+          <!-- Track 3 Part A: Ops Window Toggle -->
+          <button id="btn-ops-window" class="btn btn-ops-toggle" title="Toggle Ops Window dense data screen">
+            📊 Ops Window
+          </button>
+
           <div class="control-group">
             <label for="speed-select">Speed:</label>
             <select id="speed-select" class="custom-select">
@@ -244,7 +259,8 @@
   </script>
   <script src="https://cesium.com/downloads/cesiumjs/releases/1.115/Build/Cesium/Cesium.js"></script>
 
-  <!-- Application JS -->
+  <!-- ops_window.js must load before app_3d.js (OpsWindow is instantiated in app_3d.js) -->
+  <script src="/static/ops_window.js"></script>
   <script src="/static/app_3d.js"></script>
 </body>
 </html>
