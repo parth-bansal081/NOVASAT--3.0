@@ -3,8 +3,10 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 import datetime
-from typing import Dict, Any
+from typing import Dict, Any, Optional
+from collections import defaultdict
 from cryptography import x509
+from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
 
@@ -48,7 +50,7 @@ class SimNode:
         private_key: ed25519.Ed25519PrivateKey,
         certificate: x509.Certificate,
         trust_store: Dict[str, Any],
-        x25519_private_key: X25519PrivateKey = None,
+        x25519_private_key: Optional[X25519PrivateKey] = None,
     ):
         self.node_id = node_id
         self.certificate = certificate
@@ -65,10 +67,33 @@ class SimNode:
         # to the 6A implementation pass, when recommended_action carries real values.
         self.is_isolated: bool = False
 
+        # Automatic Swarm Reorganization v1 — tracking state
+        self.reorg_state: str = "none"           # "none" | "reorganizing" | "settled" | "parked"
+        self.reorg_target_nu_deg: Optional[float] = None   # Target true anomaly for reorganization
+        self.reorg_start_time: Optional[float] = None      # Simulation time when maneuver started
+        self.reorg_duration_s: float = 0.0       # Planned maneuver duration
+
+        # Gossip Mesh v1 — warning tracking state
+        self.warnings_seen: set[str] = set()           # warning_ids this node has already seen
+        self.warnings_issued: set[str] = set()         # warning_ids this node originated
+        self.accusations_received: Dict[str, set[str]] = defaultdict(set)  # target_id -> set of issuer_ids
+        self._flagged_targets: set[str] = set()        # targets this node has flagged (reached threshold)
+
     @property
     def x25519_public_key(self) -> X25519PublicKey | None:
         """Public X25519 key, safe to share for Diffie-Hellman exchange."""
         return self._x25519_public_key
+
+    @property
+    def ed25519_public_key_fingerprint(self) -> str:
+        """Returns the first 8 bytes of the Ed25519 public key as hex fingerprint."""
+        # The Ed25519 public key is embedded in the certificate
+        pubkey = self.certificate.public_key()
+        raw = pubkey.public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw
+        )
+        return raw[:8].hex()
 
     def sign(self, message: bytes) -> bytes:
         """
@@ -76,6 +101,33 @@ class SimNode:
         Returns ONLY the signature bytes — the private key remains isolated inside.
         """
         return sign_message(message, self._private_key)
+
+    # --- Gossip Mesh v1 helper methods ---
+
+    def record_warning_seen(self, warning_id: str, issuer_id: str, target_id: str) -> bool:
+        """
+        Record that this node has seen a warning.
+        Returns True if this is a NEW distinct issuer for this target (not seen before).
+        """
+        if warning_id in self.warnings_seen:
+            return False
+        self.warnings_seen.add(warning_id)
+        self.accusations_received[target_id].add(issuer_id)
+        return True
+
+    def distinct_issuer_count(self, target_id: str) -> int:
+        """Return number of distinct issuers that have warned about target_id."""
+        return len(self.accusations_received.get(target_id, set()))
+
+    def mark_flagged(self, target_id: str) -> bool:
+        """Mark target as flagged (threshold reached). Returns True if newly flagged."""
+        if target_id in self._flagged_targets:
+            return False
+        self._flagged_targets.add(target_id)
+        return True
+
+    def is_flagged(self, target_id: str) -> bool:
+        return target_id in self._flagged_targets
 
     @classmethod
     def provision_node(

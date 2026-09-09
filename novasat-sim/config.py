@@ -54,11 +54,19 @@ CERT_VALIDITY_DAYS = 90
 # 10. Phase 3 — Trust Propagation experiment constants
 TRIALS_PER_CONFIG = 200  # Number of trials per (N, model/condition) combination
 
-# Gossip corroboration thresholds (§5)
+# Gossip corroboration thresholds (§5) — TRACK 1 BATCH EXPERIMENTS (do not modify)
 GOSSIP_VOTE_K = 2               # Fixed-threshold: require K distinct accusers
 TRUST_WEIGHT_THRESHOLD = 2.0    # Trust-weighted: cumulative weight threshold
 TRUST_WEIGHT_CONFIRM_FACTOR = 1.2  # Decay: multiply weight by this when accusation confirmed
 TRUST_WEIGHT_DECAY_FACTOR = 0.5    # Decay: multiply weight by this when accusation unconfirmed
+
+# Live Gossip Mesh v1 — separate constant for operational system (not Track 1)
+GOSSIP_MESH_THRESHOLD_T = 1     # Distinct issuers required to flag a target (v1 live system) — DEMO: T=1 for single-issuer flag
+
+# Live Automatic Swarm Reorganization v1 — new constants
+REORG_MANEUVER_DURATION_S = 300.0      # 5 minutes sim-time for smooth true-anomaly transition
+REORG_SAFETY_PC_THRESHOLD = 1e-4       # Same as collision avoidance trigger
+REORG_MIN_SEPARATION_DEG = 5.0         # Minimum angular separation to maintain (deg)
 
 __all__ = [
     "R_MARS_KM",
@@ -80,6 +88,10 @@ __all__ = [
     "TRUST_WEIGHT_THRESHOLD",
     "TRUST_WEIGHT_CONFIRM_FACTOR",
     "TRUST_WEIGHT_DECAY_FACTOR",
+    "GOSSIP_MESH_THRESHOLD_T",
+    "REORG_MANEUVER_DURATION_S",
+    "REORG_SAFETY_PC_THRESHOLD",
+    "REORG_MIN_SEPARATION_DEG",
 ]
 
 

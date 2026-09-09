@@ -1,0 +1,1 @@
+{"type": "reorg_triggered", "sim_time_s": 0.0, "isolated_id": "orbiter_5", "affected": ["orbiter_0", "orbiter_1", "orbiter_2", "orbiter_3", "orbiter_4"], "target_nus": {"orbiter_0": 0.0, "orbiter_1": 72.0, "orbiter_2": 144.0, "orbiter_3": 216.0, "orbiter_4": 288.0}, "duration_s": 300.0}

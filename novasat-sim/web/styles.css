@@ -400,6 +400,28 @@ body, html {
   background: rgba(255, 255, 255, 0.14);
 }
 
+.btn-warning {
+  background: linear-gradient(135deg, #ffd600, #e6c000);
+  color: #000 !important;
+  border: 1px solid rgba(255, 214, 0, 0.3);
+}
+.btn-warning:hover {
+  background: linear-gradient(135deg, #ffe033, #f0d000);
+  transform: translateY(-1px);
+}
+
+.ops-dev-toggle-btn {
+  background: linear-gradient(135deg, #ff8c00, #e67e00);
+  color: #fff !important;
+  font-size: 11px;
+  padding: 6px 12px;
+}
+
+.ops-dev-toggle-btn:hover {
+  background: linear-gradient(135deg, #ff9d1a, #f08c00);
+  transform: translateY(-1px);
+}
+
 .custom-select {
   background: rgba(0, 0, 0, 0.5);
   color: #fff;
@@ -820,5 +842,271 @@ input[type="range"].orb-slider[data-param="nu"]::-webkit-slider-thumb {
 .ops-override-status-ok       { color: var(--accent-green);  }
 .ops-override-status-warn     { color: var(--accent-yellow); }
 
+/* Dev Hook: Manual Warning Injection */
+.ops-dev-warning-panel {
+  padding: 12px 14px;
+  border-top: 1px solid var(--panel-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: rgba(255, 214, 0, 0.08);
+  border: 1px solid rgba(255, 214, 0, 0.2);
+  border-radius: 0 0 8px 8px;
+}
+.ops-dev-warning-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-yellow);
+  letter-spacing: 0.5px;
+}
+.ops-dev-warning-btn {
+  align-self: flex-start;
+  font-size: 12px;
+  padding: 7px 16px;
+  background: linear-gradient(135deg, #ffd600, #e6c000);
+  color: #000 !important;
+  box-shadow: 0 4px 12px rgba(255, 214, 0, 0.3);
+}
+.ops-dev-warning-btn:hover {
+  background: linear-gradient(135deg, #ffe033, #f0d000);
+  transform: translateY(-1px);
+}
+
 /* val-fail — used in app_3d.js collision/tamper detection */
 .val-fail { color: var(--accent-mars); }
+
+/* =============================================================================
+   Security Alert Banner & Flagged Satellites Tracker (Track 3 — Gossip Mesh)
+   ============================================================================= */
+
+/* Alert Banner (top of Ops Window, above panels) */
+.ops-alert-banner {
+  display: none;
+  padding: 0;
+  margin: 0;
+}
+.ops-alert {
+  background: linear-gradient(135deg, rgba(255, 0, 60, 0.18), rgba(255, 82, 50, 0.1));
+  border: 1px solid rgba(255, 0, 60, 0.4);
+  border-radius: 8px;
+  margin: 8px 14px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(255, 0, 60, 0.2);
+  animation: ops-alert-slide-in 0.3s ease-out;
+}
+@keyframes ops-alert-slide-in {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.ops-alert-critical {
+  background: linear-gradient(135deg, rgba(255, 0, 60, 0.22), rgba(255, 82, 50, 0.12));
+  border-color: rgba(255, 0, 60, 0.5);
+  box-shadow: 0 6px 24px rgba(255, 0, 60, 0.25);
+}
+.ops-alert-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+}
+.ops-alert-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.ops-alert-details {
+  flex: 1;
+  min-width: 0;
+}
+.ops-alert-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #ff4444;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+.ops-alert-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-main);
+  line-height: 1.4;
+}
+.ops-alert-meta strong {
+  color: #ffd600;
+  font-weight: 700;
+}
+.ops-alert-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+.ops-alert-isolate {
+  background: linear-gradient(135deg, #ff003c, #cc0030) !important;
+  color: #fff !important;
+  border: none !important;
+  box-shadow: 0 3px 10px rgba(255, 0, 60, 0.4) !important;
+  padding: 7px 16px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+}
+.ops-alert-isolate:hover {
+  background: linear-gradient(135deg, #ff1a50, #dd0033) !important;
+  transform: translateY(-1px);
+}
+.ops-alert-dismiss {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: var(--text-muted) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  padding: 7px 14px !important;
+  font-size: 11px !important;
+}
+.ops-alert-dismiss:hover {
+  background: rgba(255, 255, 255, 0.14) !important;
+  color: #fff !important;
+}
+
+/* Flagged Satellites Tracker (header area) */
+.ops-flagged-tracker {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 214, 0, 0.25);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 8px 14px;
+  box-shadow: 0 2px 12px rgba(255, 214, 0, 0.08);
+}
+.ops-flagged-tracker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.ops-flagged-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-yellow);
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+.ops-flagged-count {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent-yellow);
+  background: rgba(255, 214, 0, 0.15);
+  border: 1px solid rgba(255, 214, 0, 0.3);
+  border-radius: 12px;
+  padding: 2px 10px;
+}
+.ops-flagged-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.ops-flagged-empty {
+  text-align: center;
+  font-size: 10px;
+  color: var(--text-muted);
+  padding: 8px;
+  font-style: italic;
+}
+.ops-flagged-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+.ops-flagged-item:hover {
+  background: rgba(255, 214, 0, 0.08);
+  border-color: rgba(255, 214, 0, 0.25);
+}
+.ops-flagged-item.ops-flagged-active {
+  border-color: rgba(255, 0, 60, 0.4);
+  background: rgba(255, 0, 60, 0.06);
+}
+.ops-flagged-item.ops-flagged-dismissed {
+  opacity: 0.6;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+.ops-flagged-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.ops-flagged-sat {
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--accent-cyan);
+}
+.ops-flagged-reason {
+  font-size: 9px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+.ops-flagged-time {
+  font-size: 9px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+.ops-flagged-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: 12px;
+}
+.ops-flagged-status-badge {
+  font-size: 8px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.ops-status-active {
+  background: rgba(255, 0, 60, 0.18);
+  color: #ff4444;
+  border: 1px solid rgba(255, 0, 60, 0.4);
+}
+.ops-status-isolated {
+  background: rgba(0, 229, 255, 0.18);
+  color: var(--accent-cyan);
+  border: 1px solid rgba(0, 229, 255, 0.4);
+}
+.ops-status-dismissed {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-muted);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.ops-flagged-isolate {
+  padding: 4px 10px !important;
+  font-size: 9px !important;
+  font-weight: 700 !important;
+}
+.ops-flagged-reopen {
+  padding: 4px 10px !important;
+  font-size: 9px !important;
+}
+
+/* Warning flagged row in event log */
+.ops-row-warning-flagged {
+  background: rgba(255, 214, 0, 0.08) !important;
+}
+
+/* Small button variant for flagged list */
+.btn-sm {
+  padding: 4px 10px !important;
+  font-size: 9px !important;
+}

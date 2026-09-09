@@ -1,0 +1,3 @@
+{"type": "bundle", "sim_time_s": 20800.0, "node_a": "rover_1", "node_b": "orbiter_3", "integrity_status": "verified", "bib_valid": true, "bcb_valid": true, "signer_fingerprint": "222fedb1639587f9", "verification_status": "Verified"}
+{"type": "bundle", "sim_time_s": 24400.0, "node_a": "rover_1", "node_b": "orbiter_0", "integrity_status": "verified", "bib_valid": true, "bcb_valid": true, "signer_fingerprint": "222fedb1639587f9", "verification_status": "Verified"}
+{"type": "bundle", "sim_time_s": 28000.0, "node_a": "rover_1", "node_b": "orbiter_3", "integrity_status": "verified", "bib_valid": true, "bcb_valid": true, "signer_fingerprint": "222fedb1639587f9", "verification_status": "Verified"}

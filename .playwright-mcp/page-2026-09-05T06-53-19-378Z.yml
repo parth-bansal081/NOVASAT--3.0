@@ -1,0 +1,393 @@
+- generic [ref=f10e2]:
+  - banner [ref=f10e3]:
+    - generic [ref=f10e4]:
+      - generic [ref=f10e5]: 🪐
+      - generic [ref=f10e6]:
+        - heading "NOVASAT 3D Live" [level=1] [ref=f10e7]
+        - paragraph [ref=f10e8]: CesiumJS Biaxial Ellipsoid Globe & Real-Time Anomaly Inference
+    - generic [ref=f10e9]:
+      - generic [ref=f10e10]:
+        - generic [ref=f10e11]: CONSTELLATION
+        - generic [ref=f10e12]: N = 6
+      - generic [ref=f10e13]:
+        - generic [ref=f10e14]: ACTIVE CONTACTS
+        - generic [ref=f10e15]: 0 Active
+      - generic [ref=f10e16]:
+        - generic [ref=f10e17]: ORBITAL PERIOD
+        - generic [ref=f10e18]: 118.0 min
+      - generic [ref=f10e19]:
+        - generic [ref=f10e20]: SIMULATION TIME
+        - generic [ref=f10e21]: Day 00 -- 00:38:07
+  - main [ref=f10e22]:
+    - link [ref=f10e32] [cursor=pointer]:
+      - /url: https://cesium.com/
+      - img "Cesium ion" [ref=f10e33]
+    - complementary [ref=f10e34]:
+      - generic [ref=f10e35]:
+        - heading "🛰️ Orbiters & Surface Assets" [level=3] [ref=f10e36]
+        - generic [ref=f10e37]: 2 Rovers, 6 Orbiters
+      - generic [ref=f10e38]:
+        - generic [ref=f10e39]: SERVER CONNECTION
+        - generic [ref=f10e40]: 🟢 Connected (ws://localhost:8000/ws/sim)
+      - generic [ref=f10e41]: SURFACE ROVERS (FIXED BIAXIAL ELLIPSOID)
+      - generic [ref=f10e42]:
+        - generic [ref=f10e43]:
+          - generic [ref=f10e44]:
+            - generic [ref=f10e45]: 🔴
+            - generic [ref=f10e46]:
+              - strong [ref=f10e47]: rover_1 (Perseverance)
+              - generic [ref=f10e48]: Jezero Crater
+            - generic [ref=f10e49]: 18.4663°N, 77.4298°E
+          - generic [ref=f10e50]: No Active Overhead Contact
+        - generic [ref=f10e51]:
+          - generic [ref=f10e52]:
+            - generic [ref=f10e53]: 🟡
+            - generic [ref=f10e54]:
+              - strong [ref=f10e55]: rover_2 (Curiosity)
+              - generic [ref=f10e56]: Gale Crater
+            - generic [ref=f10e57]: 4.5895°S, 137.4417°E
+          - generic [ref=f10e58]: No Active Overhead Contact
+      - generic [ref=f10e59]: ORBITERS (LIVE 3D INFERENCE & TELEMETRY)
+      - generic [ref=f10e60]:
+        - generic [ref=f10e61]:
+          - generic [ref=f10e62]:
+            - generic [ref=f10e63]: 🛰️
+            - generic [ref=f10e64]:
+              - strong [ref=f10e65]: orbiter_0
+              - generic [ref=f10e66]: "Alt: 409.4 km | Vel: 3.36 km/s"
+              - generic [ref=f10e67]: "Ed25519: d93efcc25108f98f"
+            - generic [ref=f10e68]: 63.96°, 170.71°
+          - generic [ref=f10e69]:
+            - generic [ref=f10e70]:
+              - text: "Gaussian:"
+              - strong [ref=f10e71]: "0.006"
+            - generic [ref=f10e72]:
+              - text: "iForest:"
+              - strong [ref=f10e73]: "0.282"
+            - generic [ref=f10e74]: NORMAL
+          - generic [ref=f10e75]:
+            - generic [ref=f10e76]:
+              - generic [ref=f10e77]:
+                - text: "Alt:"
+                - strong [ref=f10e78]: "409"
+                - text: km
+              - slider [ref=f10e79] [cursor=pointer]: "400"
+            - generic [ref=f10e80]:
+              - generic [ref=f10e81]:
+                - text: "Inc:"
+                - strong [ref=f10e82]: "90"
+                - text: °
+              - slider [ref=f10e83] [cursor=pointer]: "90"
+            - generic [ref=f10e84]:
+              - generic [ref=f10e85]:
+                - text: "RAAN:"
+                - strong [ref=f10e86]: "0"
+                - text: °
+              - slider [ref=f10e87] [cursor=pointer]: "0"
+            - generic [ref=f10e88]:
+              - generic [ref=f10e89]:
+                - text: "Phase:"
+                - strong [ref=f10e90]: "116"
+                - text: °
+              - slider [ref=f10e91] [cursor=pointer]: "115"
+        - generic [ref=f10e92]:
+          - generic [ref=f10e93]:
+            - generic [ref=f10e94]: 🛰️
+            - generic [ref=f10e95]:
+              - strong [ref=f10e96]: orbiter_1
+              - generic [ref=f10e97]: "Alt: 393.4 km | Vel: 3.36 km/s"
+              - generic [ref=f10e98]: "Ed25519: 101baf9511a3fe97"
+            - generic [ref=f10e99]: 3.76°, 170.71°
+          - generic [ref=f10e100]:
+            - generic [ref=f10e101]:
+              - text: "Gaussian:"
+              - strong [ref=f10e102]: "0.006"
+            - generic [ref=f10e103]:
+              - text: "iForest:"
+              - strong [ref=f10e104]: "0.264"
+            - generic [ref=f10e105]: NORMAL
+          - generic [ref=f10e106]:
+            - generic [ref=f10e107]:
+              - generic [ref=f10e108]:
+                - text: "Alt:"
+                - strong [ref=f10e109]: "393"
+                - text: km
+              - slider [ref=f10e110] [cursor=pointer]: "400"
+            - generic [ref=f10e111]:
+              - generic [ref=f10e112]:
+                - text: "Inc:"
+                - strong [ref=f10e113]: "90"
+                - text: °
+              - slider [ref=f10e114] [cursor=pointer]: "90"
+            - generic [ref=f10e115]:
+              - generic [ref=f10e116]:
+                - text: "RAAN:"
+                - strong [ref=f10e117]: "0"
+                - text: °
+              - slider [ref=f10e118] [cursor=pointer]: "0"
+            - generic [ref=f10e119]:
+              - generic [ref=f10e120]:
+                - text: "Phase:"
+                - strong [ref=f10e121]: "176"
+                - text: °
+              - slider [ref=f10e122] [cursor=pointer]: "175"
+        - generic [ref=f10e123]:
+          - generic [ref=f10e124]:
+            - generic [ref=f10e125]: 🛰️
+            - generic [ref=f10e126]:
+              - strong [ref=f10e127]: orbiter_2
+              - generic [ref=f10e128]: "Alt: 407.2 km | Vel: 3.36 km/s"
+              - generic [ref=f10e129]: "Ed25519: 729e9bf653c86f3a"
+            - generic [ref=f10e130]: "-56.56°, 170.71°"
+          - generic [ref=f10e131]:
+            - generic [ref=f10e132]:
+              - text: "Gaussian:"
+              - strong [ref=f10e133]: "0.007"
+            - generic [ref=f10e134]:
+              - text: "iForest:"
+              - strong [ref=f10e135]: "0.294"
+            - generic [ref=f10e136]: NORMAL
+          - generic [ref=f10e137]:
+            - generic [ref=f10e138]:
+              - generic [ref=f10e139]:
+                - text: "Alt:"
+                - strong [ref=f10e140]: "407"
+                - text: km
+              - slider [ref=f10e141] [cursor=pointer]: "400"
+            - generic [ref=f10e142]:
+              - generic [ref=f10e143]:
+                - text: "Inc:"
+                - strong [ref=f10e144]: "90"
+                - text: °
+              - slider [ref=f10e145] [cursor=pointer]: "90"
+            - generic [ref=f10e146]:
+              - generic [ref=f10e147]:
+                - text: "RAAN:"
+                - strong [ref=f10e148]: "0"
+                - text: °
+              - slider [ref=f10e149] [cursor=pointer]: "0"
+            - generic [ref=f10e150]:
+              - generic [ref=f10e151]:
+                - text: "Phase:"
+                - strong [ref=f10e152]: "236"
+                - text: °
+              - slider [ref=f10e153] [cursor=pointer]: "235"
+        - generic [ref=f10e154]:
+          - generic [ref=f10e155]:
+            - generic [ref=f10e156]: 🛰️
+            - generic [ref=f10e157]:
+              - strong [ref=f10e158]: orbiter_3
+              - generic [ref=f10e159]: "Alt: 409.4 km | Vel: 3.36 km/s"
+              - generic [ref=f10e160]: "Ed25519: 2d12d88f28fd534e"
+            - generic [ref=f10e161]: "-63.96°, -9.29°"
+          - generic [ref=f10e162]:
+            - generic [ref=f10e163]:
+              - text: "Gaussian:"
+              - strong [ref=f10e164]: "0.007"
+            - generic [ref=f10e165]:
+              - text: "iForest:"
+              - strong [ref=f10e166]: "0.294"
+            - generic [ref=f10e167]: NORMAL
+          - generic [ref=f10e168]:
+            - generic [ref=f10e169]:
+              - generic [ref=f10e170]:
+                - text: "Alt:"
+                - strong [ref=f10e171]: "409"
+                - text: km
+              - slider [ref=f10e172] [cursor=pointer]: "400"
+            - generic [ref=f10e173]:
+              - generic [ref=f10e174]:
+                - text: "Inc:"
+                - strong [ref=f10e175]: "90"
+                - text: °
+              - slider [ref=f10e176] [cursor=pointer]: "90"
+            - generic [ref=f10e177]:
+              - generic [ref=f10e178]:
+                - text: "RAAN:"
+                - strong [ref=f10e179]: "0"
+                - text: °
+              - slider [ref=f10e180] [cursor=pointer]: "0"
+            - generic [ref=f10e181]:
+              - generic [ref=f10e182]:
+                - text: "Phase:"
+                - strong [ref=f10e183]: "296"
+                - text: °
+              - slider [ref=f10e184] [cursor=pointer]: "295"
+        - generic [ref=f10e185]:
+          - generic [ref=f10e186]:
+            - generic [ref=f10e187]: 🛰️
+            - generic [ref=f10e188]:
+              - strong [ref=f10e189]: orbiter_4
+              - generic [ref=f10e190]: "Alt: 393.4 km | Vel: 3.36 km/s"
+              - generic [ref=f10e191]: "Ed25519: a5a27dc081639291"
+            - generic [ref=f10e192]: "-3.76°, -9.29°"
+          - generic [ref=f10e193]:
+            - generic [ref=f10e194]:
+              - text: "Gaussian:"
+              - strong [ref=f10e195]: "0.006"
+            - generic [ref=f10e196]:
+              - text: "iForest:"
+              - strong [ref=f10e197]: "0.293"
+            - generic [ref=f10e198]: NORMAL
+          - generic [ref=f10e199]:
+            - generic [ref=f10e200]:
+              - generic [ref=f10e201]:
+                - text: "Alt:"
+                - strong [ref=f10e202]: "393"
+                - text: km
+              - slider [ref=f10e203] [cursor=pointer]: "400"
+            - generic [ref=f10e204]:
+              - generic [ref=f10e205]:
+                - text: "Inc:"
+                - strong [ref=f10e206]: "90"
+                - text: °
+              - slider [ref=f10e207] [cursor=pointer]: "90"
+            - generic [ref=f10e208]:
+              - generic [ref=f10e209]:
+                - text: "RAAN:"
+                - strong [ref=f10e210]: "0"
+                - text: °
+              - slider [ref=f10e211] [cursor=pointer]: "0"
+            - generic [ref=f10e212]:
+              - generic [ref=f10e213]:
+                - text: "Phase:"
+                - strong [ref=f10e214]: "356"
+                - text: °
+              - slider [ref=f10e215] [cursor=pointer]: "355"
+        - generic [ref=f10e216]:
+          - generic [ref=f10e217]:
+            - generic [ref=f10e218]: 🛰️
+            - generic [ref=f10e219]:
+              - strong [ref=f10e220]: orbiter_5
+              - generic [ref=f10e221]: "Alt: 407.2 km | Vel: 3.36 km/s"
+              - generic [ref=f10e222]: "Ed25519: ee7362b7055a3ab3"
+            - generic [ref=f10e223]: 56.56°, -9.29°
+          - generic [ref=f10e224]:
+            - generic [ref=f10e225]:
+              - text: "Gaussian:"
+              - strong [ref=f10e226]: "0.006"
+            - generic [ref=f10e227]:
+              - text: "iForest:"
+              - strong [ref=f10e228]: "0.260"
+            - generic [ref=f10e229]: NORMAL
+          - generic [ref=f10e230]:
+            - generic [ref=f10e231]:
+              - generic [ref=f10e232]:
+                - text: "Alt:"
+                - strong [ref=f10e233]: "407"
+                - text: km
+              - slider [ref=f10e234] [cursor=pointer]: "400"
+            - generic [ref=f10e235]:
+              - generic [ref=f10e236]:
+                - text: "Inc:"
+                - strong [ref=f10e237]: "90"
+                - text: °
+              - slider [ref=f10e238] [cursor=pointer]: "90"
+            - generic [ref=f10e239]:
+              - generic [ref=f10e240]:
+                - text: "RAAN:"
+                - strong [ref=f10e241]: "0"
+                - text: °
+              - slider [ref=f10e242] [cursor=pointer]: "0"
+            - generic [ref=f10e243]:
+              - generic [ref=f10e244]:
+                - text: "Phase:"
+                - strong [ref=f10e245]: "56"
+                - text: °
+              - slider [ref=f10e246] [cursor=pointer]: "55"
+      - generic [ref=f10e247]: ⚡ LIVE ANOMALY INJECTION
+      - generic [ref=f10e248]:
+        - generic [ref=f10e249]:
+          - generic [ref=f10e250]: "Target Node:"
+          - combobox "Target Node:" [ref=f10e251] [cursor=pointer]:
+            - option "orbiter_0" [selected]
+            - option "orbiter_1"
+            - option "orbiter_2"
+            - option "orbiter_3"
+            - option "orbiter_4"
+            - option "orbiter_5"
+        - generic [ref=f10e252]:
+          - generic [ref=f10e253]: "Fault Type:"
+          - combobox "Fault Type:" [ref=f10e254] [cursor=pointer]:
+            - option "Clock Drift Skew" [selected]
+            - option "Orbital Altitude Decay"
+            - option "BPSec Bundle Tamper (BIB/BCB)"
+        - generic [ref=f10e255]:
+          - button "Inject Fault" [ref=f10e256] [cursor=pointer]
+          - button "Clear Fault" [ref=f10e257] [cursor=pointer]
+      - generic [ref=f10e258]: §4 LIVE VALIDATION MONITOR
+      - generic [ref=f10e259]:
+        - generic [ref=f10e260]:
+          - generic [ref=f10e261]: Biaxial Ellipsoid (a/b)
+          - generic [ref=f10e262]: 3396.19 / 3376.20 km (a/b = 1.0059)
+        - generic [ref=f10e263]:
+          - generic [ref=f10e264]: Orbital Period (Batch Match)
+          - generic [ref=f10e265]: 117.9 min (±0.1 min)
+        - generic [ref=f10e266]:
+          - generic [ref=f10e267]: Leakage-Safe Model Engine
+          - generic [ref=f10e268]: Gaussian & iForest (Frozen Weights)
+        - generic [ref=f10e269]:
+          - generic [ref=f10e270]: BPSec Bundle Security
+          - generic [ref=f10e271]: Ed25519 BIB + AES-256-GCM BCB (Verified)
+        - generic [ref=f10e272]:
+          - generic [ref=f10e273]: Recorded Session File
+          - generic [ref=f10e274]: Recording Off
+      - generic [ref=f10e275]: 🛡️ CONJUNCTION RISK & AUTO-MANEUVER
+      - generic [ref=f10e276]:
+        - generic [ref=f10e277]:
+          - generic [ref=f10e278]: Max Live Pc (24h Lookahead)
+          - generic [ref=f10e279]: 0.00e+0 (Nominal)
+        - generic [ref=f10e280]:
+          - generic [ref=f10e281]: Highest Risk Pair
+          - generic [ref=f10e282]: None
+        - generic [ref=f10e283]:
+          - generic [ref=f10e284]: Auto-Maneuver Status
+          - generic [ref=f10e285]: 🟢 Active (Trigger Pc > 1e-4)
+    - generic [ref=f10e286]:
+      - generic [ref=f10e287]:
+        - button "⏸ Pause" [ref=f10e288] [cursor=pointer]:
+          - generic [ref=f10e289]: ⏸
+          - generic [ref=f10e290]: Pause
+        - button "⏮ Reset" [ref=f10e291] [cursor=pointer]:
+          - generic [ref=f10e292]: ⏮
+          - text: Reset
+        - generic [ref=f10e293]:
+          - button "🔍 +" [ref=f10e294] [cursor=pointer]
+          - button "🔍 −" [ref=f10e295] [cursor=pointer]
+        - button "🌐 Reset Swarm" [ref=f10e296] [cursor=pointer]
+        - button "📊 Ops Window" [ref=f10e297] [cursor=pointer]
+        - generic [ref=f10e298]:
+          - generic [ref=f10e299]: "Speed:"
+          - combobox "Speed:" [ref=f10e300] [cursor=pointer]:
+            - option "1x (Realtime)"
+            - option "10x"
+            - option "60x (1 min/s)" [selected]
+            - option "300x (5 min/s)"
+            - option "1200x (20 min/s)"
+            - option "3600x (1 hr/s)"
+        - generic [ref=f10e301]:
+          - generic [ref=f10e302]: "Constellation:"
+          - combobox "Constellation:" [ref=f10e303] [cursor=pointer]:
+            - option "N = 1"
+            - option "N = 2"
+            - option "N = 4"
+            - option "N = 6" [selected]
+            - option "N = 8"
+            - option "N = 10"
+        - generic [ref=f10e305] [cursor=pointer]:
+          - checkbox "Record Session to Disk" [ref=f10e306]
+          - generic [ref=f10e307]: Record Session to Disk
+      - generic [ref=f10e308]:
+        - generic [ref=f10e309] [cursor=pointer]:
+          - checkbox "3D Orbit Paths" [checked] [ref=f10e310]
+          - generic [ref=f10e311]: 3D Orbit Paths
+        - generic [ref=f10e312] [cursor=pointer]:
+          - checkbox "Glowing 3D Contact Rays" [checked] [ref=f10e313]
+          - generic [ref=f10e314]: Glowing 3D Contact Rays
+        - generic [ref=f10e315] [cursor=pointer]:
+          - checkbox "USGS Landmarks Nomenclature" [checked] [ref=f10e316]
+          - generic [ref=f10e317]: USGS Landmarks Nomenclature
+        - generic [ref=f10e318] [cursor=pointer]:
+          - checkbox "Asset Labels" [checked] [ref=f10e319]
+          - generic [ref=f10e320]: Asset Labels
+        - generic [ref=f10e321]: 💡 Live 3D physics computed by Python backend & streamed over WebSockets.

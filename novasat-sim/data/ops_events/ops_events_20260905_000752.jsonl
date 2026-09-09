@@ -1,0 +1,9 @@
+{"type": "warning_issued", "sim_time_s": 43374.07111644745, "issuer_id": "orbiter_0", "target_id": "orbiter_2", "reason_code": "ANOMALY_SCORE", "evidence_value": 1.0, "warning_id": "c45892f2a396aa4f"}
+{"type": "reorg_triggered", "sim_time_s": 44171.5865278244, "isolated_id": "orbiter_0", "affected": ["orbiter_1", "orbiter_2", "orbiter_3", "orbiter_4", "orbiter_5"], "target_nus": {"orbiter_1": 60.0, "orbiter_2": 132.0, "orbiter_3": 204.0, "orbiter_4": 276.0, "orbiter_5": 348.0}, "duration_s": 300.0}
+{"type": "override", "sim_time_s": 44171.5865278244, "satellite_id": "orbiter_0", "override_action": "isolate", "operator_note": ""}
+{"type": "reorg_maneuver_complete", "sim_time_s": 44480.53243160248, "satellite_id": "orbiter_1", "target_nu_deg": 60.0}
+{"type": "reorg_maneuver_complete", "sim_time_s": 44480.53243160248, "satellite_id": "orbiter_2", "target_nu_deg": 132.0}
+{"type": "reorg_maneuver_complete", "sim_time_s": 44480.53243160248, "satellite_id": "orbiter_3", "target_nu_deg": 204.0}
+{"type": "reorg_maneuver_complete", "sim_time_s": 44480.53243160248, "satellite_id": "orbiter_4", "target_nu_deg": 276.0}
+{"type": "reorg_maneuver_complete", "sim_time_s": 44480.53243160248, "satellite_id": "orbiter_5", "target_nu_deg": 348.0}
+{"type": "reorg_complete", "sim_time_s": 44480.53243160248, "isolated_id": null, "affected_count": 0}

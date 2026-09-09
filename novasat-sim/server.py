@@ -1,5 +1,5 @@
 """
-server.py — NOVASAT Track 2 Phase 1 Live Physics & Streaming Server
+server.py -- NOVASAT Track 2 Phase 1 Live Physics & Streaming Server
 
 FastAPI + WebSockets server providing live, real-time physics propagation,
 biaxial line-of-sight occlusion computation, leakage-safe trained model inference,
@@ -33,11 +33,11 @@ import pickle
 import asyncio
 from datetime import datetime
 from functools import lru_cache
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Literal
 
 
 # -----------------------------------------------------------------------------
-# Track 3 Part A — Ops Event Log Infrastructure
+# Track 3 Part A -- Ops Event Log Infrastructure
 # Canonical path: data/ops_events/  ("live_recordings" deliberately avoided;
 # see implementation plan rationale on naming.)
 # -----------------------------------------------------------------------------
@@ -81,7 +81,11 @@ from config import (
     MARS_OMEGA_RAD_S,        # Mars sidereal rotation rate (rad/s)
     ROVER_POSITIONS,
     MIN_ELEVATION_DEG,
-    SIM_DURATION_S
+    SIM_DURATION_S,
+    GOSSIP_MESH_THRESHOLD_T,  # Live gossip mesh threshold (distinct issuers to flag)
+    REORG_MANEUVER_DURATION_S,     # 5 min sim-time for smooth true-anomaly transition
+    REORG_SAFETY_PC_THRESHOLD,     # Same as collision avoidance trigger (1e-4)
+    REORG_MIN_SEPARATION_DEG,      # Minimum angular separation to maintain (deg)
 )
 
 # Import GaussianDensityModel for pickle unpickling compatibility
@@ -107,6 +111,7 @@ except ImportError:
 from src.identity import create_root_ca
 from src.trust_store import SimNode
 from src.bpsec import wrap_bundle, unwrap_bundle, tamper_bundle
+from src.gossip import WarningMessage, create_warning_id, wrap_warning, unwrap_warning
 
 # Physical biaxial ellipsoid radii for 3D coordinate mapping & occlusion (in km)
 MARS_ELLIPSOID_A_KM = 3396.19  # Equatorial radius
@@ -121,7 +126,9 @@ app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
 # -----------------------------------------------------------------------------
 # 0. Local Mars Surface Tile Slicing Engine (Offline 100% Guaranteed Textures)
 # -----------------------------------------------------------------------------
-MARS_IMG_PATH = os.path.join(WEB_DIR, "mars_viking_color.jpg")
+MARS_IMG_PATH = os.path.join(WEB_DIR, "mars_viking_color_cropped.jpg")
+if not os.path.exists(MARS_IMG_PATH):
+    MARS_IMG_PATH = os.path.join(WEB_DIR, "mars_viking_color.jpg")
 if not os.path.exists(MARS_IMG_PATH):
     MARS_IMG_PATH = os.path.join(WEB_DIR, "mars_color.jpg")
 
@@ -465,9 +472,9 @@ class LiveSimulationEngine:
         self.conjunction_eval_count: int = 0
         self.triage_model = None
 
-        # Track 3 Part A — Ops Window counters and event log.
+        # Track 3 Part A -- Ops Window counters and event log.
         # Counters are incremented at decision time (not at render time).
-        # The client renders ops_window_totals verbatim — it never recomputes.
+        # The client renders ops_window_totals verbatim -- it never recomputes.
         self.ops_window_totals: Dict[str, int] = {
             "value_delivered": 0,
             "bundles_exchanged": 0,
@@ -493,6 +500,16 @@ class LiveSimulationEngine:
             except Exception as e:
                 print(f"[Sim Engine] Warning: Could not load triage classifier: {e}")
 
+        # Gossip Mesh v1 -- Track 3 operational warning propagation
+        self.gossip_threshold_T: int = GOSSIP_MESH_THRESHOLD_T
+        self.pending_gossip: Dict[str, List[WarningMessage]] = {}
+
+        # Automatic Swarm Reorganization v1 -- Track 3 operational reorg
+        self.reorg_active: bool = False
+        self.reorg_plan: dict = {}
+        self.reorg_safety_check_passed: bool = False
+        self.reorg_maneuver_duration_s: float = REORG_MANEUVER_DURATION_S
+
         # Phase 3 BPSec Security Infrastructure & Identity Provisioning
         self.ca_priv, self.ca_cert = create_root_ca()
         self.nodes: Dict[str, SimNode] = {}
@@ -506,13 +523,22 @@ class LiveSimulationEngine:
             node = SimNode.provision_node(nid, self.ca_priv, self.ca_cert, temp_certs)
             self.nodes[nid] = node
             temp_certs[nid] = node.certificate
+        # Initialize pending_gossip for all nodes
+        self.pending_gossip = {nid: [] for nid in all_ids}
+        # Initialize reorg_state for all nodes
+        for nid in all_ids:
+            self.nodes[nid].reorg_state = "none"
+            self.nodes[nid].reorg_target_nu_deg = None
+            self.nodes[nid].reorg_start_time = None
+            self.nodes[nid].reorg_duration_s = 0.0
         print(f"[Sim Engine] BPSec Security Layer Initialized: {len(self.nodes)} nodes provisioned (Ed25519 + X25519)")
+        print(f"[Sim Engine] Gossip Mesh v1 Initialized: threshold T={self.gossip_threshold_T}, tracking {len(self.pending_gossip)} nodes")
 
     def process_bpsec_for_contact(self, node_a: str, node_b: str, t_sec: float) -> dict:
         """Executes full BIB (Ed25519) + BCB (AES-256-GCM / X25519) pipeline for a contact link.
 
         Track 3 Part A: Checks is_isolated on both nodes first. An isolated node
-        gets no bundle exchange — returns integrity_status='quarantined' immediately
+        gets no bundle exchange -- returns integrity_status='quarantined' immediately
         and does NOT log or count a bundle event. Only a manual ground-station override
         can set is_isolated in this pass; auto-trigger from swarm_fusion.recommended_action
         is deferred to the 6A implementation pass.
@@ -542,10 +568,11 @@ class LiveSimulationEngine:
             receiver_node.x25519_public_key,
         )
 
-        # Check for bundle_tamper fault injection on either end
+        # Check for bundle_tamper fault injection on the SENDER (node_a) only.
+        # The fault should only tamper bundles SENT by the faulty node, not bundles
+        # received by it. This ensures tamper warnings correctly target the original signer.
         fault_a = self.fault_states.get(node_a, {})
-        fault_b = self.fault_states.get(node_b, {})
-        if fault_a.get("fault_type") == "bundle_tamper" or fault_b.get("fault_type") == "bundle_tamper":
+        if fault_a.get("fault_type") == "bundle_tamper":
             bundle = tamper_bundle(bundle)
 
         res = unwrap_bundle(
@@ -558,6 +585,16 @@ class LiveSimulationEngine:
 
         # --- Log and count every successful exchange (Track 3 Part A) ---
         self.ops_window_totals["bundles_exchanged"] += 1
+        
+        # Get signer fingerprint and verification status
+        signer_fingerprint = sender_node.ed25519_public_key_fingerprint
+        if res["integrity_status"] == "verified":
+            verification_status = "Verified"
+        elif res["integrity_status"] == "tampered":
+            verification_status = "Signature Mismatch"
+        else:
+            verification_status = "Unknown"
+        
         event = {
             "type": "bundle",
             "sim_time_s": float(t_sec),
@@ -566,6 +603,8 @@ class LiveSimulationEngine:
             "integrity_status": res["integrity_status"],
             "bib_valid": res["bib_valid"],
             "bcb_valid": res["bcb_valid"],
+            "signer_fingerprint": signer_fingerprint,
+            "verification_status": verification_status,
         }
         self.event_log.append(event)
         _append_ops_event(event)
@@ -574,7 +613,463 @@ class LiveSimulationEngine:
             "bib_valid": res["bib_valid"],
             "bcb_valid": res["bcb_valid"],
             "integrity_status": res["integrity_status"],
+            "signer_fingerprint": signer_fingerprint,
+            "verification_status": verification_status,
         }
+
+    # ============================================================
+    # Gossip Mesh v1 -- Track 3 Operational Warning Propagation
+    # ============================================================
+
+    def _issue_warning(self, issuer_id: str, target_id: str, reason: "Literal['ANOMALY_SCORE', 'TAMPER_DETECTED']", evidence: float, t_sec: float):
+        """Create and log a warning from issuer about target."""
+        warning_id = create_warning_id(issuer_id, target_id, t_sec)
+        issuer_node = self.nodes[issuer_id]
+
+        # Don't duplicate if already issued
+        if warning_id in issuer_node.warnings_issued:
+            return
+
+        warning = WarningMessage(
+            warning_id=warning_id,
+            issuer_id=issuer_id,
+            target_id=target_id,
+            reason_code=reason,
+            evidence_value=evidence,
+            sim_time=t_sec
+        )
+        issuer_node.warnings_issued.add(warning_id)
+
+        # Add to local pending gossip
+        self.pending_gossip[issuer_id].append(warning)
+
+        # Log event
+        event = {
+            "type": "warning_issued",
+            "sim_time_s": t_sec,
+            "issuer_id": issuer_id,
+            "target_id": target_id,
+            "reason_code": reason,
+            "evidence_value": evidence,
+            "warning_id": warning_id
+        }
+        self.event_log.append(event)
+        _append_ops_event(event)
+        print(f"[Gossip] WARNING ISSUED: {issuer_id} -> {target_id} ({reason}, evidence={evidence:.3f}, id={warning_id})")
+
+    def check_and_generate_warnings(self, orbiters_state: List[Dict], active_contacts: List[Dict], t_sec: float):
+        """Check anomaly/tamper triggers and issue warnings. Called each tick after inference."""
+        for orb in orbiters_state:
+            node_id = orb["id"]
+            node = self.nodes[node_id]
+            inference = orb.get("inference", {})
+
+            # Check each contact this node participated in
+            for contact in active_contacts:
+                if contact["node_a"] == node_id:
+                    peer_id = contact["node_b"]
+                elif contact["node_b"] == node_id:
+                    peer_id = contact["node_a"]
+                else:
+                    continue
+
+                peer_node = self.nodes.get(peer_id)
+                if not peer_node:
+                    continue
+
+                # TRIGGER 1: Anomaly detection on peer's telemetry
+                peer_orb = next((o for o in orbiters_state if o["id"] == peer_id), None)
+                if peer_orb:
+                    peer_inf = peer_orb.get("inference", {})
+                    if peer_inf.get("anomaly_flag", False):
+                        self._issue_warning(node_id, peer_id, "ANOMALY_SCORE",
+                                           peer_inf.get("ensemble_prob", 0.0), t_sec)
+
+                # TRIGGER 2: BPSec tamper detection on bundle WE RECEIVED
+                bpsec = contact.get("bpsec", {})
+                # Only warn if WE were the receiver (node_b) and the bundle was tampered
+                # The sender (node_a) originated the bundle; if it's tampered, the sender is at fault
+                if bpsec.get("integrity_status") == "tampered" and contact.get("node_b") == node_id:
+                    # We received a tampered bundle from the sender (node_a)
+                    self._issue_warning(node_id, contact["node_a"], "TAMPER_DETECTED", 1.0, t_sec)
+
+    def propagate_gossip_on_contact(self, node_a_id: str, node_b_id: str, t_sec: float):
+        """Flood all warnings between two nodes during contact. Called per contact event."""
+        node_a = self.nodes[node_a_id]
+        node_b = self.nodes[node_b_id]
+
+        # A -> B
+        for warning in list(self.pending_gossip[node_a_id]):
+            if warning.warning_id not in node_b.warnings_seen:
+                # Wrap and send using BPSec pipeline
+                wrapped = wrap_warning(
+                    warning, node_a, node_b_id, node_b.x25519_public_key
+                )
+                # Simulate unwrap/verify at receiver
+                unwrapped = unwrap_warning(
+                    wrapped, node_b, node_a_id, node_a.x25519_public_key,
+                    node_a.certificate, self.ca_cert
+                )
+                if unwrapped:
+                    is_new = node_b.record_warning_seen(unwrapped.warning_id, unwrapped.issuer_id, unwrapped.target_id)
+                    self.pending_gossip[node_b_id].append(unwrapped)
+
+                    # Check threshold
+                    if node_b.distinct_issuer_count(unwrapped.target_id) >= self.gossip_threshold_T:
+                        self._flag_target(node_b_id, unwrapped.target_id, t_sec)
+
+        # B -> A (symmetric)
+        for warning in list(self.pending_gossip[node_b_id]):
+            if warning.warning_id not in node_a.warnings_seen:
+                wrapped = wrap_warning(
+                    warning, node_b, node_a_id, node_a.x25519_public_key
+                )
+                unwrapped = unwrap_warning(
+                    wrapped, node_a, node_b_id, node_b.x25519_public_key,
+                    node_b.certificate, self.ca_cert
+                )
+                if unwrapped:
+                    is_new = node_a.record_warning_seen(unwrapped.warning_id, unwrapped.issuer_id, unwrapped.target_id)
+                    self.pending_gossip[node_a_id].append(unwrapped)
+
+                    if node_a.distinct_issuer_count(unwrapped.target_id) >= self.gossip_threshold_T:
+                        self._flag_target(node_a_id, unwrapped.target_id, t_sec)
+
+    def _flag_target(self, observer_id: str, target_id: str, t_sec: float):
+        """Called when distinct issuer count reaches threshold T."""
+        observer_node = self.nodes[observer_id]
+
+        # Check if already flagged by this observer
+        if observer_node.is_flagged(target_id):
+            return
+
+        newly_flagged = observer_node.mark_flagged(target_id)
+        if not newly_flagged:
+            return
+
+        # Log flag event for Ops Window
+        # Determine reason from the warnings that triggered this flag
+        reason = 'ANOMALY_SCORE'
+        for w in self.pending_gossip[observer_id]:
+            if w.target_id == target_id:
+                reason = w.reason_code
+                break
+
+        event = {
+            "type": "warning_flagged",
+            "sim_time_s": t_sec,
+            "observer_id": observer_id,
+            "target_id": target_id,
+            "reason_code": reason,
+            "distinct_issuers": observer_node.distinct_issuer_count(target_id),
+            "threshold_T": self.gossip_threshold_T
+        }
+        self.event_log.append(event)
+        _append_ops_event(event)
+        print(f"[Gossip] TARGET FLAGGED: {observer_id} flagged {target_id} (issuers={observer_node.distinct_issuer_count(target_id)}, T={self.gossip_threshold_T})")
+
+
+    # ============================================================
+    # Automatic Swarm Reorganization v1 -- Track 3 Operational Reorg
+    # ============================================================
+
+    def _get_current_orbiters_state(self) -> List[Dict]:
+        """Helper to get current orbiters state for reorg planning."""
+        # Reconstruct orbiters_state similar to compute_tick_state but without inference
+        t_sec = self.sim_time_s
+        theta = MARS_OMEGA_RAD_S * t_sec
+        orbiters_state = []
+        for i in range(self.n):
+            node_id = f"orbiter_{i}"
+            default_nu0_deg = i * (360.0 / self.n)
+            elem = self.custom_elements.get(i, {})
+            alt_km = elem.get("altitude_km", 400.0)
+            inc_deg = elem.get("inclination_deg", 90.0)
+            raan_deg = elem.get("raan_deg", 0.0)
+            nu0_deg = elem.get("true_anomaly_deg")
+            if nu0_deg is None:
+                nu0_deg = default_nu0_deg
+            a_orbit_km = R_MARS_KM + alt_km
+            n_mean = math.sqrt(MU_MARS_KM3_S2 / (a_orbit_km**3))
+            nu_rad = math.radians(nu0_deg) + n_mean * self.sim_time_s
+            inc_rad = math.radians(inc_deg)
+            raan_rad = math.radians(raan_deg)
+            cos_u = math.cos(nu_rad)
+            sin_u = math.sin(nu_rad)
+            cos_O = math.cos(raan_rad)
+            sin_O = math.sin(raan_rad)
+            cos_i = math.cos(inc_rad)
+            sin_i = math.sin(inc_rad)
+            x_mci = a_orbit_km * (cos_u * cos_O - sin_u * sin_O * cos_i)
+            y_mci = a_orbit_km * (cos_u * sin_O + sin_u * cos_O * cos_i)
+            z_mci = a_orbit_km * (sin_u * sin_i)
+            vel_km_s = math.sqrt(MU_MARS_KM3_S2 * (2.0 / a_orbit_km - 1.0 / a_orbit_km))
+            x_fixed = x_mci * math.cos(theta) + y_mci * math.sin(theta)
+            y_fixed = -x_mci * math.sin(theta) + y_mci * math.cos(theta)
+            z_fixed = z_mci
+            pos_fixed = np.array([x_fixed, y_fixed, z_fixed], dtype=np.float64)
+            v_mag = math.sqrt(MU_MARS_KM3_S2 / a_orbit_km)
+            vel_vec = np.array([-z_mci / a_orbit_km, 0.0, x_mci / a_orbit_km], dtype=np.float64) * v_mag
+            orbiters_state.append({
+                "id": f"orbiter_{i}",
+                "index": i,
+                "cartesian_km": [float(x_fixed), float(y_fixed), float(z_fixed)],
+                "velocity_vector_km_s": vel_vec.tolist(),
+            })
+        return orbiters_state
+
+    def _compute_even_spacing_plan(self, isolated_id: str, t_sec: float) -> dict:
+        # 1. Get isolated satellite's orbital elements
+        iso_idx = int(isolated_id.replace("orbiter_", ""))
+        iso_elem = self.custom_elements.get(iso_idx, {})
+        iso_alt = iso_elem.get("altitude_km", 400.0)
+        iso_inc = iso_elem.get("inclination_deg", 90.0)
+        iso_raan = iso_elem.get("raan_deg", 0.0)
+
+        # 2. Find all non-isolated orbiters in SAME plane
+        TOL_DEG = 0.01
+        affected = []
+        for i in range(self.n):
+            oid = f"orbiter_{i}"
+            if oid == isolated_id:
+                continue
+            node = self.nodes[oid]
+            if node.is_isolated:
+                continue
+            elem = self.custom_elements.get(i, {})
+            alt = elem.get("altitude_km", 400.0)
+            inc = elem.get("inclination_deg", 90.0)
+            raan = elem.get("raan_deg", 0.0)
+            if (abs(alt - iso_alt) < TOL_DEG and
+                abs(inc - iso_inc) < TOL_DEG and
+                abs(raan - iso_raan) < TOL_DEG):
+                affected.append(i)
+
+        if not affected:
+            return {
+                "isolated_id": isolated_id,
+                "affected_indices": [],
+                "target_nus": {},
+                "plane_key": (iso_alt, iso_inc, iso_raan),
+                "start_time": t_sec,
+                "duration_s": self.reorg_maneuver_duration_s,
+            }
+
+        # 3. Get current true anomalies for affected
+        orbiters_state = self._get_current_orbiters_state()
+        current_nus = {}
+        for idx in affected:
+            oid = f"orbiter_{idx}"
+            orb = next((o for o in orbiters_state if o["id"] == oid), None)
+            if orb:
+                # Compute current true anomaly from position
+                elem = self.custom_elements.get(idx, {})
+                nu = elem.get("true_anomaly_deg")
+                if nu is None:
+                    default_nu = idx * (360.0 / self.n)
+                    nu = default_nu
+                current_nus[idx] = nu
+
+        # 4. Sort affected by current true anomaly, recompute even spacing
+        affected_sorted = sorted(affected, key=lambda idx: current_nus[idx])
+        num_affected = len(affected_sorted)
+        spacing = 360.0 / num_affected
+        start_nu = current_nus[affected_sorted[0]]
+        target_nus = {}
+        for i, idx in enumerate(affected_sorted):
+            target_nu = (start_nu + i * spacing) % 360.0
+            target_nus[idx] = target_nu
+
+        return {
+            "isolated_id": isolated_id,
+            "affected_indices": affected_sorted,
+            "target_nus": target_nus,
+            "plane_key": (iso_alt, iso_inc, iso_raan),
+            "start_time": t_sec,
+            "duration_s": self.reorg_maneuver_duration_s,
+        }
+
+    def _check_reorg_safety(self, plan: dict, orbiters_state: list) -> bool:
+        """
+        Build hypothetical future state with target_nus applied, run conjunction assessment.
+        Returns True if all pairwise Pc < REORG_SAFETY_PC_THRESHOLD.
+        """
+        hypothetical_state = []
+        for orb in orbiters_state:
+            oid = orb["id"]
+            idx = int(oid.replace("orbiter_", ""))
+            hyp_orb = dict(orb)
+            if idx in plan["target_nus"]:
+                elem = self.custom_elements.get(idx, {})
+                alt = elem.get("altitude_km", 400.0)
+                inc = elem.get("inclination_deg", 90.0)
+                raan = elem.get("raan_deg", 0.0)
+                target_nu = plan["target_nus"][idx]
+                a_orbit = R_MARS_KM + alt
+                nu_rad = math.radians(target_nu)
+                inc_rad = math.radians(inc)
+                raan_rad = math.radians(raan)
+                cos_u = math.cos(nu_rad)
+                sin_u = math.sin(nu_rad)
+                cos_O = math.cos(raan_rad)
+                sin_O = math.sin(raan_rad)
+                cos_i = math.cos(inc_rad)
+                sin_i = math.sin(inc_rad)
+                x_mci = a_orbit * (cos_u * cos_O - sin_u * sin_O * cos_i)
+                y_mci = a_orbit * (cos_u * sin_O + sin_u * cos_O * cos_i)
+                z_mci = a_orbit * (sin_u * sin_i)
+                theta = MARS_OMEGA_RAD_S * self.sim_time_s
+                x_fixed = x_mci * math.cos(theta) + y_mci * math.sin(theta)
+                y_fixed = -x_mci * math.sin(theta) + y_mci * math.cos(theta)
+                z_fixed = z_mci
+                hyp_orb["cartesian_km"] = [float(x_fixed), float(y_fixed), float(z_fixed)]
+                v_mag = math.sqrt(MU_MARS_KM3_S2 / a_orbit)
+                vel_vec = np.array([-z_mci / a_orbit, 0.0, x_mci / a_orbit], dtype=np.float64) * v_mag
+                hyp_orb["velocity_vector_km_s"] = vel_vec.tolist()
+            hypothetical_state.append(hyp_orb)
+
+        res = evaluate_all_pairs_conjunction(hypothetical_state, lookahead_sec=86400.0, triage_model=self.triage_model)
+        for risk in res["risks"]:
+            if risk["pc"] >= REORG_SAFETY_PC_THRESHOLD:
+                print(f"[Reorg Safety] BLOCKED: {risk['sat_A']}--{risk['sat_B']} Pc={risk['pc']:.2e} >= threshold")
+                return False
+        return True
+
+    def _trigger_reorganization(self, isolated_id: str, t_sec: float):
+        """Called when a satellite becomes isolated. Computes plan, checks safety, starts reorg."""
+        orbiters_state = self._get_current_orbiters_state()
+        plan = self._compute_even_spacing_plan(isolated_id, t_sec)
+
+        if not plan["affected_indices"]:
+            print(f"[Reorg] No affected orbiters in same plane as {isolated_id}")
+            return
+
+        if not self._check_reorg_safety(plan, orbiters_state):
+            event = {
+                "type": "reorg_paused_safety",
+                "sim_time_s": t_sec,
+                "isolated_id": isolated_id,
+                "reason": "Planned reorganization would violate Pc threshold"
+            }
+            self.event_log.append(event)
+            _append_ops_event(event)
+            self.reorg_safety_check_passed = False
+            return
+
+        self.reorg_safety_check_passed = True
+        self.reorg_active = True
+        self.reorg_plan = plan
+
+        for idx in plan["affected_indices"]:
+            oid = f"orbiter_{idx}"
+            node = self.nodes[oid]
+            target_nu = plan["target_nus"][idx]
+            node.reorg_target_nu_deg = target_nu
+            node.reorg_state = "reorganizing"
+            node.reorg_start_time = t_sec
+            node.reorg_duration_s = self.reorg_maneuver_duration_s
+
+        event = {
+            "type": "reorg_triggered",
+            "sim_time_s": t_sec,
+            "isolated_id": isolated_id,
+            "affected": [f"orbiter_{i}" for i in plan["affected_indices"]],
+            "target_nus": {f"orbiter_{k}": v for k, v in plan["target_nus"].items()},
+            "duration_s": self.reorg_maneuver_duration_s
+        }
+        self.event_log.append(event)
+        _append_ops_event(event)
+        print(f"[Reorg] TRIGGERED by {isolated_id}: {len(plan['affected_indices'])} orbiters repositioning over {self.reorg_maneuver_duration_s}s")
+
+    def _get_flagged_satellites(self) -> Dict[str, Any]:
+        """Return currently flagged satellites for UI banner persistence."""
+        flagged = {}
+        for sat_id, node in self.nodes.items():
+            # Check if any other node has flagged this satellite
+            flagged_by = []
+            for observer_id, observer_node in self.nodes.items():
+                if observer_node.is_flagged(sat_id):
+                    flagged_by.append({
+                        "observer_id": observer_id,
+                        "distinct_issuers": observer_node.distinct_issuer_count(sat_id),
+                        "threshold_T": self.gossip_threshold_T
+                    })
+            if flagged_by:
+                # Get the first flag event details for this satellite
+                first_flag = None
+                for ev in self.event_log:
+                    if ev.get("type") == "warning_flagged" and ev.get("target_id") == sat_id:
+                        first_flag = ev
+                        break
+                flagged[sat_id] = {
+                    "status": "active",
+                    "reason": first_flag.get("reason_code", "ANOMALY_SCORE") if first_flag else "ANOMALY_SCORE",
+                    "issuers": max(f["distinct_issuers"] for f in flagged_by),
+                    "threshold": self.gossip_threshold_T,
+                    "first_flagged_time": first_flag.get("sim_time_s", 0) if first_flag else 0,
+                    "flagged_by": flagged_by
+                }
+        return flagged
+
+    def _execute_reorg_maneuvers(self, t_sec: float):
+        """Advance each reorganizing satellite toward its target true anomaly."""
+        if not self.reorg_active or not self.reorg_plan:
+            return
+
+        all_complete = True
+        for idx in self.reorg_plan["affected_indices"]:
+            oid = f"orbiter_{idx}"
+            node = self.nodes[oid]
+            if node.reorg_state != "reorganizing":
+                continue
+
+            target_nu = node.reorg_target_nu_deg
+            elem = self.custom_elements.get(idx, {})
+            current_nu = elem.get("true_anomaly_deg")
+            if current_nu is None:
+                default_nu = idx * (360.0 / self.n)
+                current_nu = default_nu
+
+            elapsed = t_sec - node.reorg_start_time
+            progress = min(1.0, elapsed / node.reorg_duration_s)
+
+            # Smooth interpolation (ease-in-out)
+            eased = progress * progress * (3.0 - 2.0 * progress)
+            diff = (target_nu - current_nu + 180) % 360 - 180
+            new_nu = (current_nu + diff * eased) % 360.0
+
+            elem["true_anomaly_deg"] = new_nu
+            self.custom_elements[idx] = elem
+
+            if progress >= 1.0:
+                node.reorg_state = "settled"
+                node.reorg_target_nu_deg = None
+
+                event = {
+                    "type": "reorg_maneuver_complete",
+                    "sim_time_s": t_sec,
+                    "satellite_id": f"orbiter_{idx}",
+                    "target_nu_deg": target_nu
+                }
+                self.event_log.append(event)
+                _append_ops_event(event)
+            else:
+                all_complete = False
+
+        if all_complete:
+            self.reorg_active = False
+            self.reorg_plan = {}
+
+            event = {
+                "type": "reorg_complete",
+                "sim_time_s": t_sec,
+                "isolated_id": self.reorg_plan.get("isolated_id"),
+                "affected_count": len(self.reorg_plan.get("affected_indices", []))
+            }
+            self.event_log.append(event)
+            _append_ops_event(event)
+            print(f"[Reorg] COMPLETE: all satellites settled")
+
 
     def set_n(self, n: int):
         if n in [1, 2, 4, 6, 8, 10]:
@@ -713,6 +1208,7 @@ class LiveSimulationEngine:
                 "inclination_deg": float(inc_deg),
                 "raan_deg": float(raan_deg),
                 "true_anomaly_deg": float(math.degrees(nu_rad) % 360.0),
+                "ed25519_fingerprint": self.nodes[node_id].ed25519_public_key_fingerprint,
                 "velocity_km_s": float(vel_km_s),
                 "cartesian_km": [float(x_fixed), float(y_fixed), float(z_fixed)],
                 "fault_type": fault_type,
@@ -841,7 +1337,7 @@ class LiveSimulationEngine:
                 pred = {"gaussian_score": 0.0, "iforest_score": 0.0, "anomaly_flag": False}
             orb["inference"] = pred
 
-            # Track 3 Part A — increment anomalies_flagged at detection time
+            # Track 3 Part A -- increment anomalies_flagged at detection time
             if pred.get("anomaly_flag", False):
                 self.ops_window_totals["anomalies_flagged"] += 1
                 anomaly_event = {
@@ -867,6 +1363,14 @@ class LiveSimulationEngine:
                 }
                 self.recorded_rows.append(rec_row)
 
+        # Gossip Mesh v1 -- check anomaly/tamper triggers and issue warnings
+        self.check_and_generate_warnings(orbiters_state, active_contacts, t_sec)
+
+        # Gossip Mesh v1 -- propagate warnings on each contact
+        for contact in active_contacts:
+            if contact["link_type"] != "orbiter_earth":
+                self.propagate_gossip_on_contact(contact["node_a"], contact["node_b"], t_sec)
+
         # Conjunction Risk Assessment Pass (Decoupled Hourly Cadence - Part A.1)
         if self.sim_time_s - self.last_conjunction_eval_time >= 3600.0 or not self._conjunction_has_run:
             try:
@@ -887,9 +1391,9 @@ class LiveSimulationEngine:
                             curr_alt = self.custom_elements.get(sat_a_idx, {}).get("altitude_km", 400.0)
                             curr_inc = self.custom_elements.get(sat_a_idx, {}).get("inclination_deg", 90.0)
                             new_alt = curr_alt + 2.0  # 2km along-track altitude boost maneuver
-                            
+
                             self.set_satellite_elements(sat_a_idx, new_alt, curr_inc)
-                            
+
                             # Mark satellite as maneuvering
                             for orb in orbiters_state:
                                 if orb["id"] == sat_a_id:
@@ -918,7 +1422,7 @@ class LiveSimulationEngine:
         hrs = int(rem // 3600)
         mins = int((rem % 3600) // 60)
         secs = int(rem % 60)
-        clock_str = f"Day {days:02d} — {hrs:02d}:{mins:02d}:{secs:02d}"
+        clock_str = f"Day {days:02d} -- {hrs:02d}:{mins:02d}:{secs:02d}"
 
         # 6B Per-satellite comms_decision model inference pass
         comms_decision = {}
@@ -968,7 +1472,7 @@ class LiveSimulationEngine:
             "ground_override": None,               # set by override WS command
         }
 
-        return {
+        payload = {
             "timestamp": time.time(),
             "sim_time_s": float(t_sec),
             "clock_str": clock_str,
@@ -990,7 +1494,12 @@ class LiveSimulationEngine:
             "swarm_fusion": swarm_fusion,
             "ops_window_totals": dict(self.ops_window_totals),
             "ops_event_log": self.event_log[-500:],
+            # Persistent flagged satellites state (for UI banner on connect/reconnect)
+            "flagged_satellites": self._get_flagged_satellites(),
         }
+        # Execute reorganization maneuvers if active
+        self._execute_reorg_maneuvers(self.sim_time_s)
+        return payload
 
     def update(self):
         now = time.time()
@@ -1085,8 +1594,28 @@ async def websocket_sim_endpoint(websocket: WebSocket):
                     enabled = bool(data.get("enabled", False))
                     sim_engine.toggle_record(enabled)
 
+                elif action == "dev_issue_warning":
+                    # DEV ONLY: Manually inject a warning from a specific issuer about a target.
+                    # WS: {"action": "dev_issue_warning", "issuer_id": "orbiter_X", "target_id": "orbiter_Y", "reason": "ANOMALY_SCORE|TAMPER_DETECTED"}
+                    issuer_id = str(data.get("issuer_id", ""))
+                    target_id = str(data.get("target_id", ""))
+                    reason = str(data.get("reason", "ANOMALY_SCORE"))
+                    if issuer_id in sim_engine.nodes and target_id in sim_engine.nodes:
+                        sim_engine._issue_warning(issuer_id, target_id, reason, 1.0, sim_engine.sim_time_s)  # type: ignore[arg-type]
+                        print(f"[Dev Hook] Issued {reason} warning: {issuer_id} -> {target_id}")
+                    else:
+                        print(f"[Dev Hook] Invalid issuer/target: {issuer_id} -> {target_id}")
+
+                elif action == "dev_propagate_warnings":
+                    # DEV ONLY: Force propagate all pending warnings to all nodes (simulates full mesh contact)
+                    for issuer_id in sim_engine.nodes:
+                        for target_id in sim_engine.nodes:
+                            if issuer_id != target_id:
+                                sim_engine.propagate_gossip_on_contact(issuer_id, target_id, sim_engine.sim_time_s)
+                    print(f"[Dev Hook] Propagated all warnings across full mesh")
+
                 elif action in ("override", "type_override"):
-                    # Track 3 Part A — ground-station override command.
+                    # Track 3 Part A -- ground-station override command.
                     # WS message: {"action": "override", "satellite_id": str,
                     #              "override_action": "isolate"|"clear",
                     #              "operator_note": str}
@@ -1096,7 +1625,17 @@ async def websocket_sim_endpoint(websocket: WebSocket):
                     operator_note = str(data.get("operator_note", ""))
                     target_node = sim_engine.nodes.get(sat_id)
                     if target_node and override_action in ("isolate", "clear"):
-                        target_node.is_isolated = (override_action == "isolate")
+                        if override_action == "isolate":
+                            target_node.is_isolated = True
+                            # Trigger reorganization on isolate
+                            sim_engine._trigger_reorganization(sat_id, sim_engine.sim_time_s)
+                        else:  # clear
+                            target_node.is_isolated = False
+                            # Reset reorg state on clear (no new maneuver, satellites keep current positions)
+                            target_node.reorg_state = "none"
+                            target_node.reorg_target_nu_deg = None
+                            target_node.reorg_start_time = None
+                            target_node.reorg_duration_s = 0.0
                         sim_engine.ops_window_totals["ground_overrides"] += 1
                         override_event = {
                             "type": "override",
@@ -1116,6 +1655,8 @@ async def websocket_sim_endpoint(websocket: WebSocket):
 
             sim_engine.update()
             payload = sim_engine.compute_tick_state()
+            # Execute reorganization maneuvers if active
+            sim_engine._execute_reorg_maneuvers(sim_engine.sim_time_s)
             await websocket.send_text(json.dumps(payload))
 
             await asyncio.sleep(0.08)

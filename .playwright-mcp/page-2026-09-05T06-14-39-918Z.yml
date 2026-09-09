@@ -1,0 +1,146 @@
+- generic [ref=f5e2]:
+  - banner [ref=f5e3]:
+    - generic [ref=f5e4]:
+      - generic [ref=f5e5]: 🪐
+      - generic [ref=f5e6]:
+        - heading "NOVASAT 3D Live" [level=1] [ref=f5e7]
+        - paragraph [ref=f5e8]: CesiumJS Biaxial Ellipsoid Globe & Real-Time Anomaly Inference
+    - generic [ref=f5e9]:
+      - generic [ref=f5e10]:
+        - generic [ref=f5e11]: CONSTELLATION
+        - generic [ref=f5e12]: N = 6
+      - generic [ref=f5e13]:
+        - generic [ref=f5e14]: ACTIVE CONTACTS
+        - generic [ref=f5e15]: 0 Active
+      - generic [ref=f5e16]:
+        - generic [ref=f5e17]: ORBITAL PERIOD
+        - generic [ref=f5e18]: 117.9 min
+      - generic [ref=f5e19]:
+        - generic [ref=f5e20]: SIMULATION TIME
+        - generic [ref=f5e21]: Day 00 — 00:00:00
+  - main [ref=f5e22]:
+    - link [ref=f5e32] [cursor=pointer]:
+      - /url: https://cesium.com/
+      - img "Cesium ion" [ref=f5e33]
+    - complementary [ref=f5e34]:
+      - generic [ref=f5e35]:
+        - heading "🛰️ Orbiters & Surface Assets" [level=3] [ref=f5e36]
+        - generic [ref=f5e37]: 2 Rovers, 6 Orbiters
+      - generic [ref=f5e38]:
+        - generic [ref=f5e39]: SERVER CONNECTION
+        - generic [ref=f5e40]: 🟢 Connected (ws://localhost:8000/ws/sim)
+      - generic [ref=f5e41]: SURFACE ROVERS (FIXED BIAXIAL ELLIPSOID)
+      - generic [ref=f5e42]:
+        - generic [ref=f5e43]:
+          - generic [ref=f5e44]:
+            - generic [ref=f5e45]: 🔴
+            - generic [ref=f5e46]:
+              - strong [ref=f5e47]: rover_1 (Perseverance)
+              - generic [ref=f5e48]: Jezero Crater
+            - generic [ref=f5e49]: 18.4663°N, 77.4298°E
+          - generic [ref=f5e50]: No Active Overhead Contact
+        - generic [ref=f5e51]:
+          - generic [ref=f5e52]:
+            - generic [ref=f5e53]: 🟡
+            - generic [ref=f5e54]:
+              - strong [ref=f5e55]: rover_2 (Curiosity)
+              - generic [ref=f5e56]: Gale Crater
+            - generic [ref=f5e57]: 4.5895°S, 137.4417°E
+          - generic [ref=f5e58]: No Active Overhead Contact
+      - generic [ref=f5e59]: ORBITERS (LIVE 3D INFERENCE & TELEMETRY)
+      - generic [ref=f5e60]: ⚡ LIVE ANOMALY INJECTION
+      - generic [ref=f5e61]:
+        - generic [ref=f5e62]:
+          - generic [ref=f5e63]: "Target Node:"
+          - combobox "Target Node:" [ref=f5e64] [cursor=pointer]:
+            - option "orbiter_0" [selected]
+            - option "orbiter_1"
+            - option "orbiter_2"
+            - option "orbiter_3"
+            - option "orbiter_4"
+            - option "orbiter_5"
+        - generic [ref=f5e65]:
+          - generic [ref=f5e66]: "Fault Type:"
+          - combobox "Fault Type:" [ref=f5e67] [cursor=pointer]:
+            - option "Clock Drift Skew" [selected]
+            - option "Orbital Altitude Decay"
+            - option "BPSec Bundle Tamper (BIB/BCB)"
+        - generic [ref=f5e68]:
+          - button "Inject Fault" [ref=f5e69] [cursor=pointer]
+          - button "Clear Fault" [ref=f5e70] [cursor=pointer]
+      - generic [ref=f5e71]: §4 LIVE VALIDATION MONITOR
+      - generic [ref=f5e72]:
+        - generic [ref=f5e73]:
+          - generic [ref=f5e74]: Biaxial Ellipsoid (a/b)
+          - generic [ref=f5e75]: 3396.19 / 3376.20 km (a/b = 1.0059)
+        - generic [ref=f5e76]:
+          - generic [ref=f5e77]: Orbital Period (Batch Match)
+          - generic [ref=f5e78]: 117.9 min (±0.1 min)
+        - generic [ref=f5e79]:
+          - generic [ref=f5e80]: Leakage-Safe Model Engine
+          - generic [ref=f5e81]: Gaussian & iForest (Frozen Weights)
+        - generic [ref=f5e82]:
+          - generic [ref=f5e83]: BPSec Bundle Security
+          - generic [ref=f5e84]: Ed25519 BIB + AES-256-GCM BCB (Verified)
+        - generic [ref=f5e85]:
+          - generic [ref=f5e86]: Recorded Session File
+          - generic [ref=f5e87]: Recording Off
+      - generic [ref=f5e88]: 🛡️ CONJUNCTION RISK & AUTO-MANEUVER
+      - generic [ref=f5e89]:
+        - generic [ref=f5e90]:
+          - generic [ref=f5e91]: Max Live Pc (24h Lookahead)
+          - generic [ref=f5e92]: 0.00e+00 (Nominal)
+        - generic [ref=f5e93]:
+          - generic [ref=f5e94]: Highest Risk Pair
+          - generic [ref=f5e95]: None
+        - generic [ref=f5e96]:
+          - generic [ref=f5e97]: Auto-Maneuver Status
+          - generic [ref=f5e98]: 🟢 Active (Trigger Pc > 1e-4)
+    - generic [ref=f5e99]:
+      - generic [ref=f5e100]:
+        - button "⏸ Pause" [ref=f5e101] [cursor=pointer]:
+          - generic [ref=f5e102]: ⏸
+          - generic [ref=f5e103]: Pause
+        - button "⏮ Reset" [ref=f5e104] [cursor=pointer]:
+          - generic [ref=f5e105]: ⏮
+          - text: Reset
+        - generic [ref=f5e106]:
+          - button "🔍 +" [ref=f5e107] [cursor=pointer]
+          - button "🔍 −" [ref=f5e108] [cursor=pointer]
+        - button "🌐 Reset Swarm" [ref=f5e109] [cursor=pointer]
+        - button "📊 Ops Window" [ref=f5e110] [cursor=pointer]
+        - generic [ref=f5e111]:
+          - generic [ref=f5e112]: "Speed:"
+          - combobox "Speed:" [ref=f5e113] [cursor=pointer]:
+            - option "1x (Realtime)"
+            - option "10x"
+            - option "60x (1 min/s)" [selected]
+            - option "300x (5 min/s)"
+            - option "1200x (20 min/s)"
+            - option "3600x (1 hr/s)"
+        - generic [ref=f5e114]:
+          - generic [ref=f5e115]: "Constellation:"
+          - combobox "Constellation:" [ref=f5e116] [cursor=pointer]:
+            - option "N = 1"
+            - option "N = 2"
+            - option "N = 4"
+            - option "N = 6" [selected]
+            - option "N = 8"
+            - option "N = 10"
+        - generic [ref=f5e118] [cursor=pointer]:
+          - checkbox "Record Session to Disk" [ref=f5e119]
+          - generic [ref=f5e120]: Record Session to Disk
+      - generic [ref=f5e121]:
+        - generic [ref=f5e122] [cursor=pointer]:
+          - checkbox "3D Orbit Paths" [checked] [ref=f5e123]
+          - generic [ref=f5e124]: 3D Orbit Paths
+        - generic [ref=f5e125] [cursor=pointer]:
+          - checkbox "Glowing 3D Contact Rays" [checked] [ref=f5e126]
+          - generic [ref=f5e127]: Glowing 3D Contact Rays
+        - generic [ref=f5e128] [cursor=pointer]:
+          - checkbox "USGS Landmarks Nomenclature" [checked] [ref=f5e129]
+          - generic [ref=f5e130]: USGS Landmarks Nomenclature
+        - generic [ref=f5e131] [cursor=pointer]:
+          - checkbox "Asset Labels" [checked] [ref=f5e132]
+          - generic [ref=f5e133]: Asset Labels
+        - generic [ref=f5e134]: 💡 Live 3D physics computed by Python backend & streamed over WebSockets.

@@ -1,0 +1,3 @@
+{"type": "warning_issued", "sim_time_s": 10000.0, "issuer_id": "orbiter_0", "target_id": "orbiter_1", "reason_code": "ANOMALY_SCORE", "evidence_value": 1.0, "warning_id": "2b9c2d705d115b0b"}
+{"type": "warning_issued", "sim_time_s": 10000.0, "issuer_id": "orbiter_2", "target_id": "orbiter_1", "reason_code": "ANOMALY_SCORE", "evidence_value": 1.0, "warning_id": "493872b828231ce2"}
+{"type": "warning_issued", "sim_time_s": 10000.0, "issuer_id": "orbiter_4", "target_id": "orbiter_1", "reason_code": "ANOMALY_SCORE", "evidence_value": 1.0, "warning_id": "31504eb41143fa79"}

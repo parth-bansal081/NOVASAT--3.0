@@ -1,0 +1,7 @@
+{"type": "reorg_triggered", "sim_time_s": 100.0, "isolated_id": "orbiter_0", "affected": ["orbiter_1", "orbiter_2", "orbiter_3", "orbiter_4", "orbiter_5"], "target_nus": {"orbiter_1": 60.0, "orbiter_2": 132.0, "orbiter_3": 204.0, "orbiter_4": 276.0, "orbiter_5": 348.0}, "duration_s": 300.0}
+{"type": "reorg_maneuver_complete", "sim_time_s": 400.0, "satellite_id": "orbiter_1", "target_nu_deg": 60.0}
+{"type": "reorg_maneuver_complete", "sim_time_s": 400.0, "satellite_id": "orbiter_2", "target_nu_deg": 132.0}
+{"type": "reorg_maneuver_complete", "sim_time_s": 400.0, "satellite_id": "orbiter_3", "target_nu_deg": 204.0}
+{"type": "reorg_maneuver_complete", "sim_time_s": 400.0, "satellite_id": "orbiter_4", "target_nu_deg": 276.0}
+{"type": "reorg_maneuver_complete", "sim_time_s": 400.0, "satellite_id": "orbiter_5", "target_nu_deg": 348.0}
+{"type": "reorg_complete", "sim_time_s": 400.0, "isolated_id": null, "affected_count": 0}

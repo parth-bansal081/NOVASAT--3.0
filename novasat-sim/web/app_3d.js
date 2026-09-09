@@ -53,8 +53,19 @@ class Mars3DRenderer {
       this.viewer.scene.skyAtmosphere.show = false;
     }
     this.viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString('#a2482b');
-    this.viewer.scene.globe.enableLighting = false;
+    
+    // Enable sun lighting — night side shows ACTUAL Mars texture, darkened by sun angle
+    // minimumBrightness=0.08: texture visible but properly dark (not flat color)
+    // dynamicAtmosphereLighting: adds subtle limb glow on terminator
+    this.viewer.scene.globe.enableLighting = true;
+    this.viewer.scene.globe.minimumBrightness = 0.08;   // 0.0=pure black, 0.08=texture visible in darkness
+    this.viewer.scene.globe.dynamicAtmosphereLighting = true;  // limb scattering at terminator
     this.viewer.scene.globe.depthTestAgainstTerrain = false;
+    
+    // Sun light: intensity 3.0 gives realistic terminator sharpness
+    if (this.viewer.scene.light) {
+      this.viewer.scene.light.intensity = 3.0;
+    }
 
     // Enable Camera Controls & Zoom Ranges
     const controller = this.viewer.scene.screenSpaceCameraController;
@@ -169,7 +180,7 @@ class Mars3DRenderer {
     return entity;
   }
 
-  updateOrbiter(id, lat, lon, altKm, isCompromised = false, faultType = "none") {
+  updateOrbiter(id, lat, lon, altKm, isCompromised = false, faultType = "none", reorgState = "none", reorgTargetNu = null) {
     const position = Cesium.Cartesian3.fromDegrees(lon, lat, altKm * 1000.0);
     const orbiterColor = isCompromised ? Cesium.Color.RED : Cesium.Color.CYAN;
 
@@ -204,6 +215,35 @@ class Mars3DRenderer {
       entity.label.text = `🛰️ ${id}${isCompromised ? ` ⚠️ [${faultType}]` : ""}`;
       entity.label.fillColor = orbiterColor;
       entity.label.show = this.showLabels;
+    }
+    
+    // Handle reorg state visual feedback
+    let reorgLabelSuffix = "";
+    let reorgColor = orbiterColor;
+    if (reorgState === "parked" || isCompromised) {
+      reorgColor = Cesium.Color.fromCssColorString("#555555"); // Dark Gray
+      reorgLabelSuffix = " 🔒 PARKED";
+    } else if (reorgState === "reorganizing") {
+      reorgColor = Cesium.Color.fromCssColorString("#FF7F50"); // Coral
+      reorgLabelSuffix = " ⟳ REORG";
+    } else if (reorgState === "settled") {
+      reorgColor = Cesium.Color.fromCssColorString("#00FF7F"); // Spring Green
+      reorgLabelSuffix = " ✓ SETTLED";
+    } else if (isCompromised) {
+      reorgColor = Cesium.Color.RED;
+      reorgLabelSuffix = ` ⚠️ [${faultType}]`;
+    }
+    
+    // Apply color and label changes for reorg state
+    if (reorgState !== "none") {
+      entity.point.color = reorgColor;
+      entity.label.text = `🛰️ ${id}${reorgLabelSuffix}`;
+      entity.label.fillColor = reorgColor;
+    }
+    
+    // Draw reorg trail if reorganizing
+    if (reorgState === "reorganizing" && reorgTargetNu !== null) {
+      this._drawReorgTrail(id, lat, lon, altKm, reorgTargetNu);
     }
   }
 
@@ -284,6 +324,36 @@ class Mars3DRenderer {
     this.contactLinkEntities.clear();
     this.orbitPathEntities.clear();
     this.landmarkEntities.clear();
+  }
+
+  _drawReorgTrail(id, lat, lon, altKm, targetNu) {
+    // Compute target position from targetNu
+    // We need to compute the target position using the same orbital math
+    const targetLat = lat; // Approximation - would need full orbital math
+    const targetLon = lon + targetNu; // Simplified
+    
+    const start = Cesium.Cartesian3.fromDegrees(lon, lat, altKm * 1000.0);
+    const end = Cesium.Cartesian3.fromDegrees(targetLon, targetLat, altKm * 1000.0);
+    
+    const trailId = `reorg_trail_${id}`;
+    if (!this.contactLinkEntities.has(trailId)) {
+      const entity = this.viewer.entities.add({
+        id: trailId,
+        polyline: {
+          positions: [start, end],
+          width: 2.0,
+          material: new Cesium.PolylineDashMaterialProperty({
+            color: Cesium.Color.fromCssColorString("#FF7F50"), // Coral
+            dashLength: 8.0,
+          }),
+        },
+      });
+      this.contactLinkEntities.set(trailId, entity);
+    } else {
+      const entity = this.contactLinkEntities.get(trailId);
+      entity.polyline.positions = [start, end];
+      entity.show = true;
+    }
   }
 }
 
@@ -496,7 +566,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Update orbiter positions & UI list
     orbiterListContainer.innerHTML = "";
     data.orbiters.forEach((orb) => {
-      renderer.updateOrbiter(orb.id, orb.latitude_deg, orb.longitude_deg, orb.altitude_km, orb.is_compromised, orb.fault_type);
+      renderer.updateOrbiter(orb.id, orb.latitude_deg, orb.longitude_deg, orb.altitude_km, orb.is_compromised, orb.fault_type, orb.reorg_state, orb.reorg_target_nu_deg);
 
       const inf = orb.inference || { gaussian_score: 0, iforest_score: 0, anomaly_flag: false };
 
@@ -508,6 +578,7 @@ document.addEventListener("DOMContentLoaded", () => {
           <div class="orbiter-info">
             <strong>${orb.id} ${orb.is_compromised ? `[${orb.fault_type}]` : ""}</strong>
             <span class="details">Alt: ${orb.altitude_km.toFixed(1)} km | Vel: ${orb.velocity_km_s.toFixed(2)} km/s</span>
+            <span class="details" style="font-family: monospace; font-size: 9px; opacity: 0.8;">Ed25519: ${orb.ed25519_fingerprint || 'N/A'}</span>
           </div>
           <span class="coord-badge">${orb.latitude_deg.toFixed(2)}°, ${orb.longitude_deg.toFixed(2)}°</span>
         </div>

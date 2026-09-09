@@ -1,0 +1,7 @@
+{"type": "anomaly", "sim_time_s": 10300.0, "node_id": "orbiter_1", "gaussian_score": 0.09711325168609619, "iforest_score": 0.48445558123601473, "ensemble_prob": 0.9999999968929814}
+{"type": "bundle", "sim_time_s": 10600.0, "node_a": "rover_2", "node_b": "orbiter_0", "integrity_status": "verified", "bib_valid": true, "bcb_valid": true, "signer_fingerprint": "017d1d7e0ebdaeb2", "verification_status": "Verified"}
+{"type": "anomaly", "sim_time_s": 10600.0, "node_id": "orbiter_1", "gaussian_score": 0.09650466591119766, "iforest_score": 0.49725895640589113, "ensemble_prob": 0.9999999960132679}
+{"type": "bundle", "sim_time_s": 10900.0, "node_a": "rover_2", "node_b": "orbiter_0", "integrity_status": "verified", "bib_valid": true, "bcb_valid": true, "signer_fingerprint": "017d1d7e0ebdaeb2", "verification_status": "Verified"}
+{"type": "anomaly", "sim_time_s": 10900.0, "node_id": "orbiter_1", "gaussian_score": 0.09602215141057968, "iforest_score": 0.478808298412184, "ensemble_prob": 0.9999999957773922}
+{"type": "anomaly", "sim_time_s": 11200.0, "node_id": "orbiter_1", "gaussian_score": 0.09587641060352325, "iforest_score": 0.4883239468133522, "ensemble_prob": 0.9999999953736591}
+{"type": "anomaly", "sim_time_s": 11500.0, "node_id": "orbiter_1", "gaussian_score": 0.096184141933918, "iforest_score": 0.5076652224093054, "ensemble_prob": 0.9999999953715197}

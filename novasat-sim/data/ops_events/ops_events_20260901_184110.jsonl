@@ -1,0 +1,4 @@
+{"type": "bundle", "sim_time_s": 0.0, "node_a": "orbiter_0", "node_b": "orbiter_1", "integrity_status": "tampered", "bib_valid": false, "bcb_valid": false}
+{"type": "bundle", "sim_time_s": 0.0, "node_a": "orbiter_1", "node_b": "orbiter_0", "integrity_status": "tampered", "bib_valid": false, "bcb_valid": false}
+{"type": "warning_issued", "sim_time_s": 0.0, "issuer_id": "orbiter_0", "target_id": "orbiter_1", "reason_code": "TAMPER_DETECTED", "evidence_value": 1.0, "warning_id": "f845a1368c9bc536"}
+{"type": "warning_issued", "sim_time_s": 0.0, "issuer_id": "orbiter_1", "target_id": "orbiter_0", "reason_code": "TAMPER_DETECTED", "evidence_value": 1.0, "warning_id": "4c2933d48120e432"}
